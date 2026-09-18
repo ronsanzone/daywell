@@ -25,16 +25,17 @@ the reference expands it to demonstrate completion styling.
 - Background: `#242527`
 - Raised surface: `#2D2F32`
 - Primary text: `#E8E7E3`
-- Secondary text: `#989A9C`
+- Secondary text: `#AAACAE`
 - Accent: `#B6A48F`
 
 ### Porcelain & Sage
 
 - Background: `#F4F1E8`
+- Raised surface: `#E9E8DF`
 - Primary text: `#323633`
 - Separator/stone: `#D9D7CD`
-- Accent: `#788477`
-- Secondary text: `#777A71`
+- Accent: `#52654F`
+- Secondary text: `#64685F`
 
 ![Palette and capture reference, not layout](references/08-editorial-precision.png)
 
@@ -43,19 +44,21 @@ Borrow colors, not the oversized serif date or alternate layout.
 ### Linen & Plum
 
 - Background: `#F7F3F5`
-- Raised surface: `#FFFCFD`
+- Raised surface: `#EBE4EC`
 - Primary text: `#392D3D`
-- Accent: `#806387`
-- Secondary text: `#817581`
+- Accent: `#795C80`
+- Secondary text: `#6F6373`
 
 ![Palette reference, not layout](references/03-linen-plum.png)
 
 Borrow colors, not the roomier row geometry or rounded-heading treatment.
 
-These hex values are reference tokens, not a completed accessibility palette.
-Derive selection, focus, disabled, and hover colors per theme and measure contrast
-before shipping. Aim for at least 4.5:1 normal text and 3:1 meaningful non-text
-controls; do not use accent fills as text colors without checking contrast.
+These are the implemented tokens, adjusted from the generated reference palettes
+for text contrast. Keyboard selection uses a full-opacity accent outline, separate
+from the pin symbol. Normal primary/secondary/accent text is checked against both
+background and raised surfaces; disabled states and native controls still require
+the complete accessibility acceptance pass. Aim for at least 4.5:1 normal text and
+3:1 meaningful non-text controls; do not infer whole-app compliance from token ratios.
 
 ## Typography and geometry
 

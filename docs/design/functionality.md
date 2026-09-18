@@ -55,15 +55,18 @@ No Week commitment list, calendar timeline, dedicated rescue mode, automatic tas
 suggestions, AI breakdown, focus sessions, timers, Start/Pause state, mandatory
 triage, or gamification. Future reminders remain available through browse/search.
 
-## Implementation details still needing resolution
+## Implementation details resolved in the approved technical design
 
-These do not expand the product scope and must not be mistaken for user approvals:
+The subsequent technical-design approval settled these defaults without expanding
+the product scope:
 
-- Exact shortcut bindings and command selection behavior.
-- The destination list used as the default inbox when accounts vary.
-- Done today's inclusion rules for tasks completed outside Daywell.
-- Presentation of reminders that are both chosen commitments and due/overdue.
-- Day rollover behavior over multiple missed days and time-zone changes.
-- Supported macOS floor, signing, and distribution approach.
+- Vim-inspired navigation alongside arrows, a searchable command palette, and
+  ordinary text entry unaffected by motions. Exact bindings are documented in README.
+- Start with Apple's writable default list; allow choosing an inbox in Settings.
+- Include accessible reminders completed today outside Daywell in Done today.
+- Show chosen due reminders once in My Day, with deadline metadata.
+- Group all unfinished prior days together; use current local-calendar days.
+- Target macOS 14+ with a local development app initially.
 
-The technical design proposes defaults for these, subject to approval and API validation.
+Live EventKit behavior, accessibility, and distribution still require validation;
+technical-design approval does not imply that those checks have passed.

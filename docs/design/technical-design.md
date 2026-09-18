@@ -1,8 +1,8 @@
-# Daywell technical design — proposed
+# Daywell technical design
 
 Date: September 18, 2026.
-Status: awaiting approval. Product and visual approvals do not approve every
-technical choice below. No application implementation has started.
+Status: approved by Ron, with Vim-inspired keyboard navigation added.
+Implementation authorized in the discovery thread on September 18, 2026.
 
 ## Recommended approach
 
@@ -126,17 +126,23 @@ that does not require broad keyboard monitoring if possible. Validate conflicts,
 focus restoration, Escape behavior, and interaction with text editing. Avoid
 intercepting unmodified task-action keys while typing in inputs.
 
-Use standard arrow navigation, activation, and Escape conventions. Exact bindings
-remain an implementation-design decision, not the inconsistent generated-image
-keycaps. All capture, edit, reset, theme, list, and command operations must be
-reachable by keyboard, with VoiceOver labels and visible focus.
+Use Vim-inspired j/k navigation, gg/G first/last, and h/l back/expand alongside
+standard arrows, activation, and Escape conventions. Never intercept Vim motions
+in editable text. Exact action bindings are defined in one command registry, not
+the inconsistent generated-image keycaps. All capture, edit, reset, theme, list,
+and command operations must be reachable by keyboard, with VoiceOver labels and
+visible focus.
 
 ## Build environment and first delivery
 
 Swift 6.2.4 is available on the initial Mac. Full Xcode was not found at the usual
-application path and `xcodebuild` currently fails under Command Line Tools. Resolve
-the Xcode installation/developer-directory prerequisite before claiming native
-app build or UI-test verification. Do not change the system-wide toolchain silently.
+application path and `xcodebuild` fails under Command Line Tools. Implementation
+verified that SwiftPM can nevertheless compile the native app, render SwiftUI,
+and run AppKit keyboard-event checks on this machine. `scripts/build-app.sh`
+assembles and ad-hoc signs a local `.app`; no toolchain settings were changed.
+Because the installed tools lack XCTest/Testing, the package pins Swift Testing
+6.2.4 as a test-only dependency and uses `swift test --disable-xctest`.
+This is not Xcode UI-test, notarization, or live EventKit verification.
 
 After design approval, implement in these increments:
 
@@ -161,7 +167,7 @@ the capability, use isolated assignments with disjoint file ownership, integrate
 their diffs, and review/test locally. Keep EventKit integration and end-to-end
 verification with the owning checkout. No delegation is required to write this design.
 
-## Approval gate
+## Approval record
 
-Review this proposed design before app scaffolding. Upon approval, write the
-executable implementation plan and proceed with the requested implementation.
+Ron approved the technical design and edge-case behavior, requested Vim-inspired
+motions, and authorized the build. Proceed with a recorded implementation plan.

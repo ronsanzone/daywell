@@ -7,14 +7,79 @@ Working product name; trademark and distribution-name availability have not been
 
 ## Status
 
-Product functionality and visual direction approved by Ron on September 18, 2026.
-Repository setup is complete; technical design is proposed, not yet approved.
-No application code has been scaffolded or implemented.
+Local development build of the approved v1, September 18, 2026. Native SwiftUI
+and AppKit interface with EventKit integration, fixture-based verification,
+and three themes. Not notarized or release-ready: live Reminders integration
+and full accessibility acceptance remain to be checked.
 
 - [Approved functionality](docs/design/functionality.md)
 - [Visual style guide and saved references](docs/design/visual-style-guide.md)
-- [Proposed technical design](docs/design/technical-design.md)
+- [Approved technical design](docs/design/technical-design.md)
+- [Verification results and remaining checks](docs/verification.md)
 - [Inherited research, not requirements](docs/design/research-handoff.md)
+
+## Run
+
+Requires macOS 14+ and Swift 6.2.4. Command Line Tools are sufficient for this
+SwiftPM development build; full Xcode is not required. The first build downloads
+the pinned Swift Testing dependency used only by tests.
+
+```sh
+swift test --disable-xctest
+bash scripts/build-app.sh
+open dist/Daywell.app --args --demo
+```
+
+Demo mode uses disposable fixture reminders and temporary preferences. It never
+creates an EventKit store or reads personal reminders. Quit the demo before
+starting the real app:
+
+```sh
+open dist/Daywell.app
+```
+
+The real app explains Reminders access before requesting permission. Once granted,
+completion, editing, capture and deletion change Apple Reminders. Only grant
+access when ready to test against your own data. The bundle is ad-hoc signed for
+local development, not a portable notarized download.
+
+## Keyboard
+
+- Control–Option–Space: open/close from anywhere; configurable in Settings.
+- `j/k`, arrows: next/previous; `gg/G`: first/last; `h/l`: back/open.
+- `p`: pin; `a`: choose for My Day; `r`: release; `x`: complete/reopen; `d`: Done today.
+- ⌘N: capture; ⌘F: browse/search; ⌘K: commands; ⌘,: settings; `?`: help.
+- ⌘Return: save capture/edit; ⌘Z: undo completion outside text entry.
+- Escape leaves text entry, then returns to My Day, then closes the panel.
+- Letters always type normally inside fields. Tab traverses native controls;
+  macOS Keyboard Navigation may be needed for all controls.
+
+Capture recognizes a **terminal English suffix**: `today`, `tomorrow`, a weekday,
+or `next <weekday>`, optionally followed by `at noon`, `at midnight`, `at 2pm`,
+`at 2:30pm`, or `at 14:30`. A bare weekday includes today; `next` excludes today.
+Unsupported phrases and ambiguous/nonexistent DST times remain literal titles.
+The preview lets you change the phrase or remove its deadline before saving.
+
+My Day membership never changes a reminder's deadline or list. Companion choices
+are stored in `~/Library/Application Support/Daywell/day-plan.json`, with a
+last-good `.backup`; settings use UserDefaults. No companion cloud sync exists.
+
+## Development checks
+
+```sh
+swift build --product Daywell
+.build/debug/Daywell --ui-check
+mkdir -p artifacts
+.build/debug/Daywell --snapshot artifacts/graphite.png --theme graphite --expanded
+.build/debug/Daywell --snapshot artifacts/capture.png --view capture
+```
+
+Snapshot options include `--theme graphite|sage|plum`, `--view
+day|browse|capture|commands|help|settings|edit`, `--previous`, `--empty`,
+`--permission`, `--long-title`, `--error`, and `--unpinned`.
+These render the actual SwiftUI interface with disposable demo data.
+`--ui-check` posts AppKit keyboard events through the running application.
+It is not a substitute for live EventKit, cross-application hotkey, or VoiceOver tests.
 
 ## Project
 
@@ -23,12 +88,4 @@ No application code has been scaffolded or implemented.
 - [Discovery and approval thread](https://ampcode.com/threads/T-01a0b56d-fed3-701e-87cc-178e8363ac7d)
 
 The Amp project is linked to this Git remote. The existing discovery thread has
-not been moved or reassociated. Initial documentation is local until explicitly pushed.
-
-## Environment
-
-The initial machine has Swift 6.2.4 and macOS Command Line Tools. `xcodebuild`
-cannot run with its current developer directory; no Xcode application was found
-under `/Applications/Xcode*.app`. Native app build, signing, and UI-test setup
-require resolving this prerequisite. Swift-only model tests can be developed
-independently once the technical design is approved.
+not been moved or reassociated. Work remains local until explicitly pushed.
