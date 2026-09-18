@@ -43,6 +43,14 @@ final class KeyboardHostingView: NSHostingView<PanelView> {
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    if arguments.contains("--live-check") {
+      guard !demo else {
+        fputs("Do not combine --live-check with demo, snapshot or UI-check mode.\n", stderr)
+        exit(2)
+      }
+      Task { exit(await LiveRemindersCheck.run()) }
+      return
+    }
     do {
       let root: URL
       if demo {

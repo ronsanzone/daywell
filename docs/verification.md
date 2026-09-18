@@ -66,12 +66,48 @@ and raised surfaces using sRGB relative luminance. Minimum ratios: graphite
 5.56:1, sage 4.63:1, plum 4.54:1. This does not certify native controls, disabled
 states, VoiceOver or whole-app accessibility.
 
-## Deliberately not verified yet
+## Authorized live acceptance attempt
 
-- **Live EventKit:** no permission prompt, personal reminder read, or live write
-  was exercised. Validate capture/edit/delete and external refresh in a separately
-  approved disposable Reminders list. Include read-only/deleted lists, permission
-  revocation, recurrence completion/undo, alarms, and date-only timezone behavior.
+Ron authorized an isolated **Daywell Test** list and disposable reminders in the
+discovery thread. The new `--live-check` mode requests permission before creating
+anything. It never reuses an existing calendar; fixture writes and cleanup are
+restricted to the newly created list and a unique per-run title prefix. The
+normal local day plan and preferences are not loaded or changed by this mode.
+
+The live attempt **blocked at macOS permission**, timing out before list creation.
+No reminders or calendars were created, edited, or deleted. A direct executable
+launch was attributed to Ghostty by TCC; the retry used LaunchServices (`open`)
+to launch Daywell normally, but permission was still not granted. The runner
+could not approve the native prompt through its available controls.
+
+The release build, 41 unit/model tests, 21 fixture keyboard checks, and format lint
+were rerun successfully after adding this mode. Combining `--live-check` with
+`--demo` was verified to exit with status 2 before requesting access.
+
+Resume on the Mac running Daywell after granting it Reminders permission:
+
+```sh
+mkdir -p artifacts
+open -n -W --stdout "$PWD/artifacts/live-check.log" \
+  --stderr "$PWD/artifacts/live-check-errors.log" \
+  "$PWD/dist/Daywell.app" --args --live-check
+cat artifacts/live-check.log artifacts/live-check-errors.log
+```
+
+Use the normal app launch rather than running its executable from a terminal so
+macOS requests Daywell's permission, not the terminal's. `open` returning zero
+only proves launch/exit; inspect the log for test and cleanup results. Permission
+waits are bounded at 60 seconds. The planned checks include date-only capture,
+timed editing, alarm/URL preservation, completion/undo, stale-write rejection,
+external refresh, deletion, recurrence metadata, and fixture cleanup. They have
+**not passed live** yet.
+
+## Still not verified
+
+- **Live EventKit:** complete the authorized acceptance run above. Also verify
+  read-only/deleted lists, permission revocation, recurrence-generated occurrences,
+  and date-only timezone behavior before release. A successful recurrence metadata
+  check alone would not prove that undo removed any generated next occurrence.
 - **System interaction:** global shortcut delivery from other applications,
   recording/conflicts, focus restoration across applications, and optional count
   changes need a hands-on check. Carbon registration ran during the smoke tests,
@@ -83,5 +119,5 @@ states, VoiceOver or whole-app accessibility.
 - **Distribution:** app icon, Developer ID signing, hardened runtime, notarization,
   installer/update process. The current ad-hoc app is for local development only.
 
-Do not change personal reminders or publish this app as part of these remaining
-checks without explicit authorization. Nothing has been pushed or deployed.
+Authorization covers the disposable test list only, not unrelated personal
+reminders or app publication. Nothing has been pushed or deployed.

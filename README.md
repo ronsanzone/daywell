@@ -81,6 +81,13 @@ These render the actual SwiftUI interface with disposable demo data.
 `--ui-check` posts AppKit keyboard events through the running application.
 It is not a substitute for live EventKit, cross-application hotkey, or VoiceOver tests.
 
+An explicit `--live-check` mode creates a new **Daywell Test** list, exercises the
+real EventKit adapter using disposable reminders, then cleans up its own fixtures.
+It changes real Reminders data and must only be run with authorization. Launch it
+through `open` so macOS attributes the permission request to Daywell rather than
+the terminal. See the [live acceptance instructions](docs/verification.md#authorized-live-acceptance-attempt).
+The initial attempt stopped at permission; it has not passed live acceptance yet.
+
 ## Project
 
 - Local checkout: `/Users/sanzoner/code/daywell`
