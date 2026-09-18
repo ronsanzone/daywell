@@ -7,6 +7,8 @@ import Testing
 @MainActor final class TestStore: ReminderStore {
   var authorized = true
   var failWrites = false
+  var advanceCompletions = false
+  var ignoreCompletion = false
   var items = [ReminderItem(id: "a", title: "Dentist", listID: "inbox", listName: "Inbox")]
   var fetchHandler: (() async -> ReminderSnapshot)?
   func requestAccess() async throws -> Bool { authorized }
@@ -19,6 +21,18 @@ import Testing
     if failWrites { throw ReminderError.readOnly }
     if let original, items.first(where: { $0.id == original.id }) != original {
       throw ReminderError.changed
+    }
+    if let original, item.isCompleted && !original.isCompleted {
+      if ignoreCompletion { return original }
+      if advanceCompletions, let due = original.dueDate {
+        var occurrence = item
+        occurrence.id = "completed-\(original.id)"
+        items.append(occurrence)
+        var next = original
+        next.dueDate = due.addingTimeInterval(86400)
+        items[items.firstIndex(where: { $0.id == original.id })!] = next
+        return next
+      }
     }
     var saved = item
     if original == nil { saved.id = UUID().uuidString }
@@ -211,6 +225,42 @@ import Testing
         returning: ReminderSnapshot(reminders: store.items, lists: [], defaultListID: nil))
       await older.value
       #expect(model.reminders.first?.title == "Newer edit")
+    }
+  }
+
+  @Test func autoAdvancedOccurrenceReleasesChoiceAndCannotUndoNextOccurrence() async throws {
+    try await withModel { model, store in
+      store.items[0].dueDate = Date(timeIntervalSince1970: 1_790_000_000)
+      store.items.append(ReminderItem(id: "b", title: "Ordinary task", listID: "inbox"))
+      await model.refresh()
+      await model.complete("b")
+      #expect(model.undo != nil)
+      model.pin("a")
+      store.advanceCompletions = true
+      await model.complete("a")
+      #expect(model.undo == nil)
+      #expect(!model.plan.commitments.contains { $0.reminderID == "a" })
+      #expect(model.projection.pinnedReminderID == nil)
+      #expect(
+        model.reminders.first { $0.id == "a" }?.dueDate
+          == Date(timeIntervalSince1970: 1_790_086_400))
+      #expect(model.reminders.first { $0.id == "completed-a" }?.isCompleted == true)
+      #expect(model.notice == "Occurrence completed. Undo unavailable for this repeating reminder.")
+      let after = store.items
+      await model.undoCompletion()
+      #expect(store.items == after)
+    }
+  }
+
+  @Test func unconfirmedCompletionDoesNotReleaseChoiceOrClaimSuccess() async throws {
+    try await withModel { model, store in
+      model.pin("a")
+      store.ignoreCompletion = true
+      await model.complete("a")
+      #expect(model.undo == nil)
+      #expect(model.projection.pinnedReminderID == "a")
+      #expect(model.notice == nil)
+      #expect(model.error != nil)
     }
   }
 }

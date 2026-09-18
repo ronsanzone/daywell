@@ -16,6 +16,11 @@ Research in `research-handoff.md` is background, not an additional requirements 
 - On a new day, show unfinished prior commitments under **From yesterday**.
   Keep all, choose a few, or release commitments without deleting or rescheduling reminders.
 - Put completed work in a collapsed **Done today** section, with undo of completion.
+  Approved v1 exception: when Apple Reminders advances a repeating reminder to
+  its next occurrence, completion remains supported but undo is unavailable in
+  Daywell. Explain this explicitly rather than rescheduling the next occurrence.
+  Ordinary non-repeating completion retains undo. Ron approved this limitation
+  after reviewing the observed EventKit behavior on September 18, 2026.
 
 ## Capture and operations
 

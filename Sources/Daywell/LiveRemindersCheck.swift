@@ -3,13 +3,30 @@ import DaywellCore
 import DaywellKit
 import EventKit
 
-/// Explicit opt-in acceptance run. Never reuses an existing list or writes to
-/// existing reminders. Only the newly created calendar is eligible for cleanup.
+/// Explicit opt-in acceptance run. Fixture recovery additionally requires an
+/// exact list ID, unique run prefix, and reminder IDs supplied by the caller.
 @MainActor enum LiveRemindersCheck {
   static func run() async -> Int32 {
+    let recovery: (listID: String, prefix: String, ids: Set<String>)?
+    if let index = CommandLine.arguments.firstIndex(of: "--recover-fixtures") {
+      let values = Array(CommandLine.arguments.dropFirst(index + 1))
+      guard values.count == 3, !values[0].isEmpty,
+        values[1].hasPrefix("Daywell acceptance "),
+        UUID(uuidString: String(values[1].dropFirst("Daywell acceptance ".count))) != nil,
+        !values[2].isEmpty
+      else {
+        print(
+          "Recovery requires an exact list ID, Daywell acceptance UUID prefix, and comma-separated reminder IDs."
+        )
+        return 2
+      }
+      recovery = (values[0], values[1], Set(values[2].split(separator: ",").map(String.init)))
+    } else {
+      recovery = nil
+    }
     let adapter = EventKitReminderStore()
     print(
-      "LIVE CHECK: requesting Reminders access for Daywell; existing reminders will not be changed."
+      "LIVE CHECK: requesting Reminders access; writes are restricted to disposable test fixtures."
     )
     fflush(stdout)
     let permissionTimeout = Task {
@@ -31,6 +48,32 @@ import EventKit
       guard try await adapter.requestAccess() else { throw ReminderError.denied }
       permissionTimeout.cancel()
       print("PASS: native Reminders permission granted")
+      if let recovery {
+        guard let list = fixtures.calendar(withIdentifier: recovery.listID),
+          list.title == "Daywell Test",
+          let entries = await fetch(in: list, store: fixtures, prefix: recovery.prefix),
+          entries.allSatisfy({ $0.owned && recovery.ids.contains($0.id) })
+        else {
+          throw CheckFailure(
+            message: "Recovery list or fixture identity did not match; nothing removed.")
+        }
+        // Revalidate each fetched object before deletion, and never delete a
+        // calendar unless a fresh query confirms it is empty.
+        for entry in entries {
+          guard let reminder = fixtures.calendarItem(withIdentifier: entry.id) as? EKReminder,
+            reminder.calendar.calendarIdentifier == recovery.listID,
+            reminder.title?.hasPrefix(recovery.prefix) == true
+          else { throw CheckFailure(message: "Recovery fixture changed; stopped cleanup.") }
+          try fixtures.remove(reminder, commit: true)
+        }
+        guard let remaining = await fetch(in: list, store: fixtures, prefix: recovery.prefix),
+          remaining.isEmpty
+        else { throw CheckFailure(message: "Recovery list is not verified empty; kept it intact.") }
+        try fixtures.removeCalendar(list, commit: true)
+        print(
+          "PASS: recovered \(entries.count) identified prior fixtures and removed their empty test list"
+        )
+      }
       guard let source = fixtures.defaultCalendarForNewReminders()?.source else {
         throw CheckFailure(
           message: "No default Reminders account is available; no test list created.")
@@ -41,6 +84,7 @@ import EventKit
       try fixtures.saveCalendar(list, commit: true)
       testList = list
       print("Created a new isolated Daywell Test list. Existing same-named lists are untouched.")
+      print("Test list ID: \(list.calendarIdentifier); fixture prefix: \(prefix)")
       fflush(stdout)
 
       // Construct after list creation so the adapter's EventKit cache starts
@@ -122,19 +166,54 @@ import EventKit
           recurrenceWith: .daily, interval: 1, end: EKRecurrenceEnd(occurrenceCount: 3)))
       try fixtures.save(recurring, commit: true)
       let beforeRecurring = try await snapshot(recurring.calendarItemIdentifier, in: store)
-      var recurringDone = beforeRecurring
-      recurringDone.isCompleted = true
-      let savedRecurring = try await store.save(recurringDone, replacing: beforeRecurring)
-      try check(savedRecurring.isCompleted, "recurring reminder can be completed")
-      let reopenedRecurring = try await store.save(beforeRecurring, replacing: savedRecurring)
-      try check(!reopenedRecurring.isCompleted, "recurring completion can be undone")
+      let planDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+        UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: planDirectory) }
+      let model = AppModel(
+        store: store, planStore: PlanStore(url: planDirectory.appendingPathComponent("plan.json")))
+      await model.refresh()
+      model.pin(beforeRecurring.id)
+      await model.complete(beforeRecurring.id)
+      try check(
+        model.error == nil && model.undo == nil
+          && !model.plan.commitments.contains { $0.reminderID == beforeRecurring.id },
+        "auto-advanced recurrence releases its commitment and offers no unsafe undo")
+      let recurringState = try await store.fetch()
+      let occurrences = recurringState.reminders.filter { $0.listID == list.calendarIdentifier }
+      try check(
+        occurrences.count == 2
+          && occurrences.contains {
+            $0.id != beforeRecurring.id && $0.isCompleted && $0.dueDate == tomorrow
+          }, "EventKit retains the completed occurrence separately")
+      try check(
+        occurrences.contains {
+          $0.id == beforeRecurring.id && !$0.isCompleted
+            && $0.dueDate == calendar.date(byAdding: .day, value: 1, to: tomorrow)
+        }, "the next occurrence remains at its advanced deadline")
+      await model.undoCompletion()
+      let afterNoUndo = try await store.fetch().reminders.filter {
+        $0.listID == list.calendarIdentifier
+      }
+      try check(
+        afterNoUndo.sorted { $0.id < $1.id } == occurrences.sorted { $0.id < $1.id },
+        "unavailable undo does not reschedule or duplicate either occurrence")
+      for oldList in recurringState.lists
+      where oldList.title == "Daywell Test" && oldList.id != list.calendarIdentifier {
+        let oldFixtures = recurringState.reminders.filter { $0.listID == oldList.id }
+        print("Pre-existing test list \(oldList.id): \(oldFixtures.count) items")
+        for old in oldFixtures where old.title.hasPrefix("Daywell acceptance ") {
+          print("Prior fixture: \(old.id) \(old.title)")
+        }
+      }
+      fflush(stdout)
       _ = recurring.refresh()
       try check(
         recurring.recurrenceRules?.first?.frequency == .daily,
-        "completion and undo preserve recurrence metadata")
+        "auto-advanced completion preserves recurrence metadata")
     } catch {
       failed = true
       print("FAIL/BLOCKED: \(error.localizedDescription)")
+      fflush(stdout)
     }
 
     if let list = testList {
@@ -182,7 +261,8 @@ import EventKit
     id: String, owned: Bool
   )]? {
     await withCheckedContinuation { continuation in
-      store.fetchReminders(matching: store.predicateForReminders(in: [list])) { reminders in
+      store.fetchReminders(matching: store.predicateForReminders(in: [list])) {
+        @Sendable reminders in
         continuation.resume(
           returning: reminders?.map {
             ($0.calendarItemIdentifier, $0.title?.hasPrefix(prefix) == true)
@@ -194,6 +274,7 @@ import EventKit
   private static func check(_ condition: Bool, _ label: String) throws {
     guard condition else { throw CheckFailure(message: label) }
     print("PASS: \(label)")
+    fflush(stdout)
   }
 
   private struct CheckFailure: LocalizedError {

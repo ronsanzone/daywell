@@ -3,10 +3,27 @@
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 
+## Latest live result — passed
+
+After Ron approved the unchanged bundle, `artifacts/live-check-6.log` confirmed:
+
+- Both identified leftovers from the crashed run and their empty test list removed.
+- Capture, date/time editing, alarm/URL preservation, ordinary completion/undo,
+  stale-write rejection, external refresh, and deletion passed.
+- Recurring completion released the commitment, retained the completed occurrence,
+  and kept the next occurrence at its advanced deadline with recurrence intact.
+- Invoking unavailable undo left both occurrences unchanged.
+- The final run's disposable reminders and new list were cleaned up.
+
+No pending test-fixture cleanup remains. Do not rerun the historical recovery
+command below: its target list has been removed. The existing `dist/Daywell.app`
+is ready for a local hands-on trial without rebuilding or re-signing. Broader
+release checks remain listed at the end of this report.
+
 ## Executed checks
 
 - `swift format lint --strict -r Sources Tests Package.swift` — passed.
-- `swift test --disable-xctest` — **41 tests in 5 suites passed**.
+- `swift test --disable-xctest` — **43 tests in 5 suites passed**.
 - `bash scripts/build-app.sh` — release build and ad-hoc signed app produced at
   `dist/Daywell.app` without full Xcode or system toolchain changes.
 - `codesign --verify --deep --strict dist/Daywell.app` — passed.
@@ -74,8 +91,8 @@ anything. It never reuses an existing calendar; fixture writes and cleanup are
 restricted to the newly created list and a unique per-run title prefix. The
 normal local day plan and preferences are not loaded or changed by this mode.
 
-The live attempt **blocked at macOS permission**, timing out before list creation.
-No reminders or calendars were created, edited, or deleted. A direct executable
+The initial live attempt **blocked at macOS permission**, timing out before list creation.
+No reminders or calendars were changed in that initial attempt. A direct executable
 launch was attributed to Ghostty by TCC; the retry used LaunchServices (`open`)
 to launch Daywell normally, but permission was still not granted. The runner
 could not approve the native prompt through its available controls.
@@ -99,15 +116,83 @@ macOS requests Daywell's permission, not the terminal's. `open` returning zero
 only proves launch/exit; inspect the log for test and cleanup results. Permission
 waits are bounded at 60 seconds. The planned checks include date-only capture,
 timed editing, alarm/URL preservation, completion/undo, stale-write rejection,
-external refresh, deletion, recurrence metadata, and fixture cleanup. They have
-**not passed live** yet.
+external refresh, deletion, recurrence metadata, and fixture cleanup. These passed
+in run 6 under the approved recurring-undo exception; see the latest result above.
+
+### Follow-up after permission was granted
+
+- The first authorized run created a test list, then crashed during cleanup.
+  The crash report identifies a main-actor assertion inside the test harness's
+  `fetch` mapping closure on `com.apple.eventkit.reminders.search`. Making the
+  callback explicitly `@Sendable` fixed that crash in the next live run.
+- The next run passed list discovery, date-only capture, no added alarm, title/
+  notes/timed-date editing, existing alarm/URL preservation, ordinary completion
+  and undo, stale-write rejection, external refresh, and deletion.
+- That run failed **recurring reminder can be completed**: the adapter's saved
+  snapshot was not marked completed. The later diagnostic run established why,
+  as described below; recurring undo is not validated.
+- Cleanup of that second run's reminders and new list passed. Its local evidence
+  is `artifacts/live-check-2.log`. The first crashed run's list/fixtures may still
+  remain and must be inspected before cleanup; never delete by list name alone.
+- A diagnostic build now logs only test-list recurrence snapshots and identifiers
+  needed to identify prior fixtures. Its launch was blocked by permission again.
+  TCC logs explicitly reported a code-requirement mismatch after rebuilding the
+  ad-hoc-signed app. No valid development signing identity is installed.
+- After approval, `artifacts/live-check-4.log` confirmed that completing the daily
+  fixture advances the original ID to the next day's deadline, still incomplete,
+  and creates a separate completed reminder with a different ID. Reversing the
+  original snapshots would move the next deadline backward, not undo completion.
+  This run cleaned up its own fixtures and list successfully.
+- The source now clears unsafe undo when EventKit returns a different completion
+  state. A same-ID advance releases the current commitment and reports that undo
+  is unavailable; an unconfirmed result leaves the commitment intact and reports
+  an error. Ron subsequently **approved this v1 recurring-undo exception** after
+  reviewing the risk; it is recorded in `design/functionality.md`.
+  End-of-series and undated recurrence remain unverified.
+- Before the approval decision: **43 unit/model tests**, strict format lint, and **21
+  fixture keyboard checks** passed using `.build/debug/Daywell --ui-check`.
+  The approved bundle was initially left unchanged to avoid another prompt.
+  After approval it was rebuilt as recorded below; live validation is still pending.
+- The first crashed run left exactly two identified fixtures. Pending recovery
+  must verify list ID `7B78C648-D4A9-4406-A918-269029F18382`, title prefix
+  `Daywell acceptance D323C1A3-9AC6-4C49-8FE2-87D8471B4ECB`, and reminder IDs
+  `FF501A83-7922-43C7-A21C-EF62F1B40579` and
+  `DABFFC47-13C0-4580-8869-F63960E7E011` before deleting. Delete the list only
+  after verifying it is empty. Do not delete other same-named lists or reminders.
+- Ron chose to defer signing setup. The latest release bundle now includes the
+  safeguard and explicit fixture recovery. All **43 tests**, **21 release-bundle
+  keyboard checks**, format lint, and signature verification passed. Malformed
+  recovery arguments were verified to return status 2 before requesting access.
+- `artifacts/live-check-5.log` records the latest attempt: permission timed out
+  before fixture recovery or new list creation. No Reminders writes occurred in
+  this attempt. The two earlier fixtures are still pending cleanup.
+- At that point, the next action was to approve Daywell and retry the command below
+  without rebuilding. Accessibility and screen-capture preflights are both false
+  on the runner. No keychain, certificate, or system permission changes have been
+  made by the agent.
+
+Historical command — successfully executed; do not repeat recovery:
+
+```sh
+open -n -W --stdout "$PWD/artifacts/live-check-6.log" \
+  --stderr "$PWD/artifacts/live-check-6-errors.log" \
+  "$PWD/dist/Daywell.app" --args --live-check --recover-fixtures \
+  7B78C648-D4A9-4406-A918-269029F18382 \
+  'Daywell acceptance D323C1A3-9AC6-4C49-8FE2-87D8471B4ECB' \
+  FF501A83-7922-43C7-A21C-EF62F1B40579,DABFFC47-13C0-4580-8869-F63960E7E011
+```
+
+Recovery requires all fetched entries to match the supplied reminder IDs and run
+prefix in the exact list. Each object is rechecked before removal; the list is
+removed only after a fresh empty query. Normal `--live-check` without recovery
+arguments does not touch prior runs. Inspect logs before retrying: if recovery
+already succeeded, omit its arguments on subsequent acceptance runs.
 
 ## Still not verified
 
-- **Live EventKit:** complete the authorized acceptance run above. Also verify
-  read-only/deleted lists, permission revocation, recurrence-generated occurrences,
-  and date-only timezone behavior before release. A successful recurrence metadata
-  check alone would not prove that undo removed any generated next occurrence.
+- **Live EventKit:** beyond the passed isolated run, verify read-only/deleted lists,
+  permission revocation, end-of-series and undated recurrence, and date-only timezone
+  behavior before release. Recurring undo remains excluded when the series advances.
 - **System interaction:** global shortcut delivery from other applications,
   recording/conflicts, focus restoration across applications, and optional count
   changes need a hands-on check. Carbon registration ran during the smoke tests,
@@ -119,5 +204,6 @@ external refresh, deletion, recurrence metadata, and fixture cleanup. They have
 - **Distribution:** app icon, Developer ID signing, hardened runtime, notarization,
   installer/update process. The current ad-hoc app is for local development only.
 
-Authorization covers the disposable test list only, not unrelated personal
-reminders or app publication. Nothing has been pushed or deployed.
+Live-test authorization covers disposable fixtures only, not unrelated personal
+reminders. Ron separately authorized committing and pushing the source to a private
+GitHub repository. App distribution and deployment remain outside that authorization.

@@ -169,6 +169,24 @@ import Observation
       changed.isCompleted.toggle()
       changed.completionDate = changed.isCompleted ? now : nil
       let saved = try await store.save(changed, replacing: original)
+      if saved.isCompleted != changed.isCompleted {
+        // EventKit can keep the recurring series at the same ID, advance its
+        // deadline, and create a separate completed occurrence. Reversing these
+        // snapshots would reschedule the next occurrence, not undo completion.
+        undo = nil
+        notice = nil
+        if changed.isCompleted, saved.id == original.id,
+          let beforeDue = original.dueDate, let nextDue = saved.dueDate, nextDue > beforeDue
+        {
+          release(original.id)
+          notice = "Occurrence completed. Undo unavailable for this repeating reminder."
+        } else {
+          error =
+            "Apple Reminders did not confirm the completion change. Review the refreshed reminder before trying again."
+        }
+        await refresh()
+        return
+      }
       undo = (original, saved)
       if saved.isCompleted && projection.pinnedReminderID == id { updatePlan { $0.unpin() } }
       await refresh()

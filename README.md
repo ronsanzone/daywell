@@ -9,8 +9,9 @@ Working product name; trademark and distribution-name availability have not been
 
 Local development build of the approved v1, September 18, 2026. Native SwiftUI
 and AppKit interface with EventKit integration, fixture-based verification,
-and three themes. Not notarized or release-ready: live Reminders integration
-and full accessibility acceptance remain to be checked.
+and three themes. The isolated live Reminders acceptance run passed, including
+the approved recurring-undo safeguard and fixture cleanup. Not notarized or
+release-ready: broader integration and full accessibility acceptance remain.
 
 - [Approved functionality](docs/design/functionality.md)
 - [Visual style guide and saved references](docs/design/visual-style-guide.md)
@@ -54,6 +55,10 @@ local development, not a portable notarized download.
 - Letters always type normally inside fields. Tab traverses native controls;
   macOS Keyboard Navigation may be needed for all controls.
 
+Repeating reminders can be completed, but when Apple Reminders advances the
+series, Daywell explicitly reports that undo is unavailable. It does not move
+the next occurrence backward to imitate undo. Ordinary completion retains undo.
+
 Capture recognizes a **terminal English suffix**: `today`, `tomorrow`, a weekday,
 or `next <weekday>`, optionally followed by `at noon`, `at midnight`, `at 2pm`,
 `at 2:30pm`, or `at 14:30`. A bare weekday includes today; `next` excludes today.
@@ -86,13 +91,16 @@ real EventKit adapter using disposable reminders, then cleans up its own fixture
 It changes real Reminders data and must only be run with authorization. Launch it
 through `open` so macOS attributes the permission request to Daywell rather than
 the terminal. See the [live acceptance instructions](docs/verification.md#authorized-live-acceptance-attempt).
-The initial attempt stopped at permission; it has not passed live acceptance yet.
+Ordinary operations and the recurring-completion safeguard passed live checks.
+Earlier crashed-run fixtures and the final run's fixtures were cleaned up;
+see the verification report for coverage and remaining release checks.
 
 ## Project
 
 - Local checkout: `/Users/sanzoner/code/daywell`
+- Private source repository: [ronsanzone/daywell](https://github.com/ronsanzone/daywell)
 - [Personal Amp project](https://ampcode.com/@user_01KXFD6ZER08KBZSCQQ8YG7VM4/daywell)
 - [Discovery and approval thread](https://ampcode.com/threads/T-01a0b56d-fed3-701e-87cc-178e8363ac7d)
 
-The Amp project is linked to this Git remote. The existing discovery thread has
-not been moved or reassociated. Work remains local until explicitly pushed.
+The original Amp remote is retained as `origin`; the private GitHub repository is
+the `github` remote. The existing discovery thread has not been moved or reassociated.
