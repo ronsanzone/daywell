@@ -1,0 +1,69 @@
+# Approved functionality
+
+Status: approved by Ron on September 18, 2026, with subsequent visual and naming decisions incorporated.
+Source: [product discovery thread](https://ampcode.com/threads/T-01a0b56d-fed3-701e-87cc-178e8363ac7d).
+Research in `research-handoff.md` is background, not an additional requirements list.
+
+## Core daily loop
+
+- Open the menu-bar panel to **My Day**, the user's explicitly chosen commitments.
+- Make one optionally pinned task prominent. Pinning another replaces it.
+  Pinning does not create an in-progress state.
+- Browse or search existing Apple Reminders lists to choose commitments.
+  Encourage starting with 1–3, without a cap, warning, or extra steps to add more.
+- Show **Due & overdue** separately from chosen commitments. Choosing for My Day
+  never changes a deadline or moves a reminder out of its existing Reminders list.
+- On a new day, show unfinished prior commitments under **From yesterday**.
+  Keep all, choose a few, or release commitments without deleting or rescheduling reminders.
+- Put completed work in a collapsed **Done today** section, with undo of completion.
+
+## Capture and operations
+
+- Natural-language capture is separate from search. Preview interpreted dates
+  and times before saving; let the user correct or remove an interpretation.
+- Capture defaults to a Reminders inbox with an optional **Add to My Day** choice.
+  A due date alone does not create a My Day commitment.
+- No mandatory triage, processing queue, or unprocessed status.
+- Edit title, notes, due date/time, and list; complete and delete reminders.
+  Richer settings are handled in Apple Reminders.
+- Every action is keyboard-accessible. Include a configurable global shortcut,
+  searchable command palette, and discoverable shortcut-help pop-up.
+  Pointer interaction is also supported.
+- Neutral menu-bar icon by default. Settings can enable a count of unfinished
+  My Day commitments. No overdue badge or added notifications; existing Apple
+  Reminders alerts remain independent.
+
+## Appearance
+
+- Use concept 7, **Linear Precision**, for layout and hierarchy.
+- Settings offer **Graphite & Taupe** (default), **Porcelain & Sage**, and **Linen & Plum**.
+  These change colors, not the layout.
+- Use open and checked completion circles, with a separate pin symbol.
+- Preserve the half-filled in-progress circle in the style guide as a reserved
+  future design only. Do not implement its state, actions, or persistence in v1.
+
+## Storage and privacy
+
+- Apple Reminders is authoritative for underlying reminders and their supported fields.
+- My Day choices and the pin are companion-specific and local initially.
+- Design persistence to accommodate eventual sync without losing existing choices.
+  Do not implement sync now.
+
+## Explicit exclusions
+
+No Week commitment list, calendar timeline, dedicated rescue mode, automatic task
+suggestions, AI breakdown, focus sessions, timers, Start/Pause state, mandatory
+triage, or gamification. Future reminders remain available through browse/search.
+
+## Implementation details still needing resolution
+
+These do not expand the product scope and must not be mistaken for user approvals:
+
+- Exact shortcut bindings and command selection behavior.
+- The destination list used as the default inbox when accounts vary.
+- Done today's inclusion rules for tasks completed outside Daywell.
+- Presentation of reminders that are both chosen commitments and due/overdue.
+- Day rollover behavior over multiple missed days and time-zone changes.
+- Supported macOS floor, signing, and distribution approach.
+
+The technical design proposes defaults for these, subject to approval and API validation.
