@@ -12,6 +12,7 @@ public struct PanelView: View {
     self.preferences = preferences
   }
   var palette: Palette { preferences.theme.colors }
+  private var crtIntensity: Double { preferences.theme == .amber ? preferences.crtIntensity : 0 }
 
   public var body: some View {
     VStack(spacing: 0) {
@@ -86,9 +87,14 @@ public struct PanelView: View {
       Rectangle().strokeBorder(palette.secondary.opacity(0.35), lineWidth: 1)
         .allowsHitTesting(false)
     }
+    .overlay {
+      if crtIntensity > 0 {
+        CRTSurface().opacity(crtIntensity)
+      }
+    }
     .tint(palette.accent)
     .buttonStyle(.plain)
-    .preferredColorScheme(preferences.theme == .graphite ? .dark : .light)
+    .preferredColorScheme(preferences.theme.colorScheme)
     .alert(
       "Delete this reminder?",
       isPresented: Binding(
@@ -115,7 +121,12 @@ public struct PanelView: View {
         .help("Back to My Day · h / Escape")
       }
       VStack(alignment: .leading, spacing: 4) {
-        Text(title).font(.system(size: 21, weight: .semibold))
+        Text(title).font(
+          .system(
+            size: 21, weight: .semibold,
+            design: preferences.theme == .amber ? .monospaced : .default)
+        )
+        .shadow(color: palette.accent.opacity(crtIntensity * 0.7), radius: crtIntensity * 5)
         Text(model.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
           .font(.system(size: 12)).foregroundStyle(palette.secondary)
       }
@@ -327,6 +338,7 @@ public struct PanelView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text(reminder.title).font(.system(size: 14)).strikethrough(reminder.isCompleted)
           .foregroundStyle(reminder.isCompleted ? palette.secondary : palette.text)
+          .shadow(color: palette.accent.opacity(crtIntensity * 0.55), radius: crtIntensity * 3)
           .lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
         if pinned && !reminder.notes.isEmpty {
           Text(reminder.notes).font(.system(size: 11)).foregroundStyle(palette.secondary).lineLimit(
@@ -377,7 +389,10 @@ public struct PanelView: View {
     .background(selected ? palette.raised : Color.clear, in: RoundedRectangle(cornerRadius: 6))
     .overlay(
       RoundedRectangle(cornerRadius: 6).strokeBorder(
-        selected ? palette.accent : Color.clear, lineWidth: 1)
+        selected ? palette.accent : Color.clear, lineWidth: 1
+      )
+      .shadow(color: palette.accent.opacity(crtIntensity * 0.8), radius: crtIntensity * 5)
+      .allowsHitTesting(false)
     )
     .id(reminder.id)
   }

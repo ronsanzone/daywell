@@ -88,6 +88,12 @@ final class MenuBarPanel: NSPanel {
         {
           preferences.theme = theme
         }
+        if demo,
+          let intensity = DevelopmentChecks.option("--crt-intensity", in: arguments).flatMap(
+            Double.init)
+        {
+          preferences.crtIntensity = intensity
+        }
         if arguments.contains("--snapshot") {
           await DevelopmentChecks.snapshot(
             model: model, preferences: preferences, arguments: arguments)
@@ -112,7 +118,8 @@ final class MenuBarPanel: NSPanel {
               exit(1)
             }
             await DevelopmentChecks.checkUI(
-              model: model, hosting: hosting, panel: panel, button: button)
+              model: model, preferences: preferences, hosting: hosting, panel: panel, button: button
+            )
           }
         }
       }
@@ -289,6 +296,8 @@ final class MenuBarPanel: NSPanel {
       }
       return nil
     }
+    // Native sliders own arrow keys; don't interpret Left as navigation back.
+    if event.window?.firstResponder is NSSlider { return event }
     guard event.modifierFlags.intersection([.control, .option]).isEmpty else { return event }
     let arrows: [UInt16: String] = [125: "↓", 126: "↑", 123: "←", 124: "→"]
     let character = arrows[event.keyCode] ?? (event.characters ?? "")

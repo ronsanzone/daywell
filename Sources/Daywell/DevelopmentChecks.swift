@@ -40,7 +40,8 @@ import SwiftUI
 
   /// Posts AppKit events through the application queue, not model actions.
   static func checkUI(
-    model: AppModel, hosting: KeyboardHostingView, panel: NSPanel, button: NSStatusBarButton
+    model: AppModel, preferences: Preferences, hosting: KeyboardHostingView,
+    panel: NSPanel, button: NSStatusBarButton
   ) async {
     func check(_ value: Bool, _ label: String) {
       guard value else {
@@ -172,6 +173,36 @@ import SwiftUI
       "search and Return keep previous commitments")
     await key(",", code: 43, modifiers: .command)
     check(model.route == .settings, "Command-comma opens settings")
+    let originalTheme = preferences.theme
+    await click(x: 160, fromTop: 287)
+    check(preferences.theme == .amber, "pointer selects Amber CRT")
+    await click(x: 510, fromTop: 346)
+    check(preferences.crtIntensity > 0.9, "pointer increases CRT intensity through surface overlay")
+    let pointerIntensity = preferences.crtIntensity
+    func findSlider(in view: NSView) -> NSSlider? {
+      if let slider = view as? NSSlider { return slider }
+      return view.subviews.lazy.compactMap { findSlider(in: $0) }.first
+    }
+    guard let slider = findSlider(in: hosting) else {
+      check(false, "CRT slider is a native control")
+      return
+    }
+    // Establish the focus reached via Tab with macOS Keyboard Navigation enabled,
+    // without changing the user's system-wide keyboard preference.
+    check(panel.makeFirstResponder(slider), "CRT slider accepts keyboard focus")
+    await key("\u{f702}", code: 123)
+    check(
+      model.route == .settings && preferences.crtIntensity < pointerIntensity,
+      "Left arrow adjusts focused CRT slider instead of navigating back")
+    await click(x: 30, fromTop: 346)
+    check(preferences.crtIntensity == 0, "zero intensity turns off CRT effects")
+    check(panel.makeFirstResponder(slider), "CRT slider retains keyboard availability at zero")
+    await key("\u{f703}", code: 124)
+    check(preferences.crtIntensity > 0, "Right arrow re-enables CRT effects")
+    await click(x: 160, fromTop: 143)
+    check(preferences.theme == .graphite, "pointer switches back to Graphite")
+    preferences.theme = originalTheme
+    panel.makeFirstResponder(hosting)
     await key("h", code: 4)
     check(model.route == .day, "h returns from settings")
     await key("\u{1b}", code: 53)

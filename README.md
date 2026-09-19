@@ -83,6 +83,28 @@ If the plan is unreadable, use **Restore day-plan backup…** and confirm recove
 Recovery validates the backup and preserves the corrupt original beside the plan;
 it never replaces a newer unsupported schema or changes Apple Reminders.
 
+## Amber CRT experiment
+
+The source build includes an opt-in **Amber CRT · experimental** theme in Settings.
+It keeps the current layout, with amber colors, phosphor-style text/selection glow,
+and a Metal-generated scanline, grain, and vignette surface. The intensity slider
+defaults to 65%; 0% keeps only the amber palette and typography. Existing themes
+and the default remain unchanged.
+
+Try it without installing or re-signing the approved app, and without live Reminders:
+
+```sh
+swift build --product Daywell
+.build/debug/Daywell --demo --theme amber --crt-intensity 0.65
+```
+
+The shader compiles at runtime (no offline Metal compiler required) and generates
+a static texture when its surface is created or resized. There is no continuous
+render loop, flicker, distortion, or afterimage animation. Text entry remains native;
+if Metal is unavailable, an on-screen notice explains the texture fallback.
+Demo preferences are disposable. Use Settings in a normal source-built session to
+persist a theme; the existing installed release has not been updated by this experiment.
+
 ## Development checks
 
 ```sh
@@ -106,7 +128,7 @@ mkdir -p artifacts
 .build/debug/Daywell --snapshot artifacts/capture.png --view capture
 ```
 
-Snapshot options include `--theme graphite|sage|plum`, `--view
+Snapshot options include `--theme graphite|sage|plum|amber`, `--crt-intensity 0…1`, `--view
 day|browse|capture|commands|help|settings|edit`, `--previous`, `--due`, `--lists`, `--empty`,
 `--permission`, `--long-title`, `--error`, `--recovery`, and `--unpinned`.
 These render the actual SwiftUI interface with disposable demo data.

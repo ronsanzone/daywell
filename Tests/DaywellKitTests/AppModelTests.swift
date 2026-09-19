@@ -454,6 +454,24 @@ import Testing
     #expect(reloaded.shortcutKey == 2)
   }
 
+  @Test func amberThemeIsOptInAndPersistsWithoutChangingReminderData() async throws {
+    let name = "daywell.tests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let preferences = Preferences(defaults: defaults)
+    #expect(preferences.theme == .graphite)
+    let amber = try #require(Theme(rawValue: "amber"))
+    try await withModel(preferences: preferences) { model, store in
+      model.choose("a")
+      let plan = model.plan
+      let reminders = store.items
+      preferences.theme = amber
+      #expect(Preferences(defaults: defaults).theme == amber)
+      #expect(model.plan == plan)
+      #expect(store.items == reminders)
+    }
+  }
+
   @Test func paletteExposesDoneAndDeletionWithoutDeletingImmediately() async throws {
     try await withModel { model, store in
       DaywellCommand.allCases.first { $0.title == "Show / hide Done today" }?.perform(model)
