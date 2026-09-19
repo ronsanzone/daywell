@@ -46,7 +46,7 @@ struct CaptureView: View {
         .keyboardShortcut(.return, modifiers: .command).disabled(
           model.captureText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.busy)
       }
-    }.padding(20).onAppear { focused = true }
+    }.padding(20).onAppear { focused = true }.disabled(model.busy)
   }
 }
 
@@ -86,7 +86,6 @@ struct EditorView: View {
         }
         HStack {
           Button("Cancel") {
-            model.editing = nil
             model.route = .day
           }
           Spacer()
@@ -104,8 +103,8 @@ struct EditorView: View {
         Button("Open Apple Reminders for more options") {
           DaywellCommand.appleReminders.perform(model)
         }.font(.system(size: 12))
-        Button("Delete reminder…", role: .destructive) { model.pendingDelete = original }.disabled(
-          !original.isWritable)
+        Button("Delete reminder…", role: .destructive) { model.requestDelete(original) }
+          .disabled(!DaywellCommand.delete.isEnabled(model, reminderID: original.id))
       }.padding(20)
     }
   }

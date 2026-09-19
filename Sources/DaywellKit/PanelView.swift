@@ -2,9 +2,11 @@ import DaywellCore
 import SwiftUI
 
 public struct PanelView: View {
+  public static let preferredSize = CGSize(width: 560, height: 660)
   @Bindable var model: AppModel
   @Bindable var preferences: Preferences
   @FocusState private var browseSearchFocused: Bool
+  @State private var confirmRecovery = false
   public init(model: AppModel, preferences: Preferences) {
     self.model = model
     self.preferences = preferences
@@ -26,6 +28,18 @@ public struct PanelView: View {
             Image(systemName: "xmark")
           }.help("Dismiss error")
         }.padding(12).background(palette.raised)
+      }
+      if model.recoveryRequired {
+        Button("Restore day-plan backup…") { confirmRecovery = true }
+          .font(.system(size: 12)).padding(12).disabled(model.busy)
+          .alert("Restore the previous day plan?", isPresented: $confirmRecovery) {
+            Button("Cancel", role: .cancel) {}
+            Button("Restore backup") { model.restorePlanBackup() }
+          } message: {
+            Text(
+              "This restores the last good local plan, not Apple Reminders. The unreadable original is preserved. Newer unsupported versions are never overwritten."
+            )
+          }
       }
       if !model.authorized {
         permissionView
@@ -64,9 +78,14 @@ public struct PanelView: View {
         captureFooter
       }
     }
-    .frame(width: 420, height: 660)
+    .frame(width: Self.preferredSize.width)
+    .frame(maxHeight: .infinity)
     .foregroundStyle(palette.text)
     .background(palette.background)
+    .overlay {
+      Rectangle().strokeBorder(palette.secondary.opacity(0.35), lineWidth: 1)
+        .allowsHitTesting(false)
+    }
     .tint(palette.accent)
     .buttonStyle(.plain)
     .preferredColorScheme(preferences.theme == .graphite ? .dark : .light)
@@ -90,7 +109,6 @@ public struct PanelView: View {
       if model.route != .day {
         Button {
           model.route = .day
-          model.editing = nil
         } label: {
           Image(systemName: "chevron.left")
         }
@@ -120,7 +138,7 @@ public struct PanelView: View {
         ).background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
       }
       .help("Commands · ⌘K")
-    }.padding(.horizontal, 20).padding(.vertical, 21)
+    }.padding(.horizontal, 20).padding(.vertical, 16)
   }
 
   private var title: String {
@@ -150,8 +168,14 @@ public struct PanelView: View {
           }
           ForEach(model.projection.today) { reminder in row(reminder) }
           if !model.projection.due.isEmpty {
-            sectionTitle("Due & overdue")
-            ForEach(model.projection.due) { reminder in row(reminder, showDue: true) }
+            sectionDivider
+            disclosure(
+              "Due & overdue", count: model.projection.due.count, expanded: $model.dueExpanded
+            )
+            .padding(.horizontal, 8).padding(.vertical, 12)
+            if model.dueExpanded {
+              ForEach(model.projection.due) { reminder in row(reminder, showDue: true) }
+            }
           }
           if !model.projection.previous.isEmpty {
             sectionDivider
@@ -186,6 +210,7 @@ public struct PanelView: View {
           )
           .padding(.horizontal, 8).padding(.vertical, 14)
           if model.doneExpanded { ForEach(model.projection.done) { reminder in row(reminder) } }
+          inlineLists
           if !model.projection.unresolved.isEmpty {
             Text(
               "\(model.projection.unresolved.count) saved commitment(s) could not be linked to a reminder. Your plan is preserved."
@@ -196,6 +221,56 @@ public struct PanelView: View {
       }.onChange(of: model.selectedID) { _, id in if let id { proxy.scrollTo(id, anchor: .center) }
       }
     }
+  }
+
+  private var inlineLists: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      sectionDivider
+      HStack {
+        Text("YOUR LISTS").font(.system(size: 11, weight: .medium))
+        Spacer()
+        Text("Not in My Day").font(.system(size: 11))
+      }.foregroundStyle(palette.secondary).padding(.horizontal, 8).padding(.vertical, 12)
+      ForEach(model.dayLists) { section in
+        let expanded = model.expandedListIDs.contains(section.id)
+        let items = model.inlineListItems(section)
+        VStack(alignment: .leading, spacing: 0) {
+          disclosure(
+            section.list.title, count: section.items.count,
+            expanded: Binding(
+              get: { model.expandedListIDs.contains(section.id) },
+              set: { model.setListExpanded(section.id, expanded: $0) })
+          )
+          .padding(.horizontal, 8).padding(.vertical, 10)
+          if expanded {
+            ForEach(items) { item in
+              row(item, showChoose: true)
+            }
+            let shownAbove = section.items.count - items.count
+            if shownAbove > 0 {
+              listSummary("\(shownAbove) shown in the sections above")
+            } else if section.items.isEmpty {
+              listSummary("No other unfinished reminders")
+            }
+          } else {
+            listSummary(
+              section.items.isEmpty
+                ? "No other unfinished reminders"
+                : section.items.prefix(2).map(\.title).joined(separator: " · "))
+          }
+          Divider().overlay(palette.secondary.opacity(0.1))
+        }
+      }
+      if model.dayLists.isEmpty {
+        listSummary("No reminder lists available")
+      }
+    }
+  }
+
+  private func listSummary(_ text: String) -> some View {
+    Text(text).font(.system(size: 11)).foregroundStyle(palette.secondary)
+      .lineLimit(1).padding(.leading, 29).padding(.trailing, 8).padding(.bottom, 10)
+      .help(text)
   }
 
   private var browseView: some View {
@@ -234,7 +309,9 @@ public struct PanelView: View {
     }.padding(16)
   }
 
-  private func row(_ reminder: ReminderItem, showDue: Bool = false) -> some View {
+  private func row(_ reminder: ReminderItem, showDue: Bool = false, showChoose: Bool = false)
+    -> some View
+  {
     let selected = model.selectedID == reminder.id
     let pinned = model.projection.pinnedReminderID == reminder.id
     return HStack(spacing: 11) {
@@ -258,8 +335,7 @@ public struct PanelView: View {
       }.contentShape(Rectangle())
         .onTapGesture(count: 2) {
           model.selectedID = reminder.id
-          model.editing = reminder
-          model.route = .edit
+          model.edit(reminder.id)
         }
         .onTapGesture { model.selectedID = reminder.id }
       if let due = reminder.dueDate, showDue || !reminder.isCompleted {
@@ -270,17 +346,28 @@ public struct PanelView: View {
         Image(systemName: "pin.fill").font(.system(size: 11)).foregroundStyle(palette.accent)
           .accessibilityLabel("Pinned")
       }
+      if showChoose {
+        Button {
+          model.choose(reminder.id)
+        } label: {
+          Image(systemName: "plus").font(.system(size: 12))
+        }
+        .disabled(!DaywellCommand.choose.isEnabled(model, reminderID: reminder.id))
+        .accessibilityLabel("Add \(reminder.title) to My Day")
+        .help("Add to My Day · a")
+      }
       Menu {
-        Button("Add to My Day") { model.choose(reminder.id) }.disabled(reminder.isCompleted)
-        Button(pinned ? "Unpin" : "Pin") { model.pin(reminder.id) }.disabled(reminder.isCompleted)
-        Button("Edit") {
-          model.editing = reminder
-          model.route = .edit
-        }.disabled(!reminder.isWritable)
+        Button("Add to My Day") { model.choose(reminder.id) }
+          .disabled(!DaywellCommand.choose.isEnabled(model, reminderID: reminder.id))
+        Button(pinned ? "Unpin" : "Pin") { model.pin(reminder.id) }
+          .disabled(!DaywellCommand.pin.isEnabled(model, reminderID: reminder.id))
+        Button("Edit") { model.edit(reminder.id) }
+          .disabled(!DaywellCommand.edit.isEnabled(model, reminderID: reminder.id))
         Button("Remove from My Day") { model.release(reminder.id) }
+          .disabled(!DaywellCommand.release.isEnabled(model, reminderID: reminder.id))
         Divider()
-        Button("Delete reminder…", role: .destructive) { model.pendingDelete = reminder }.disabled(
-          !reminder.isWritable)
+        Button("Delete reminder…", role: .destructive) { model.requestDelete(reminder) }
+          .disabled(!DaywellCommand.delete.isEnabled(model, reminderID: reminder.id))
       } label: {
         Image(systemName: "ellipsis").font(.system(size: 12)).foregroundStyle(palette.secondary)
       }
@@ -307,14 +394,7 @@ public struct PanelView: View {
     return date.formatted(.dateTime.month(.abbreviated).day())
   }
   private var sectionDivider: some View {
-    Divider().overlay(palette.secondary.opacity(0.1)).padding(.top, 15)
-  }
-  private func sectionTitle(_ title: String) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      sectionDivider
-      Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(palette.secondary)
-        .padding(.horizontal, 8)
-    }.padding(.bottom, 7)
+    Divider().overlay(palette.secondary.opacity(0.1)).padding(.top, 6)
   }
   private func disclosure(_ title: String, count: Int, expanded: Binding<Bool>) -> some View {
     Button {
@@ -326,8 +406,12 @@ public struct PanelView: View {
         ).frame(width: 12)
         Text(title).font(.system(size: 12))
         Text("\(count)").font(.system(size: 11)).foregroundStyle(palette.secondary)
+        Spacer(minLength: 0)
       }
-    }.accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
+      .contentShape(Rectangle())
+    }.accessibilityLabel(title)
+      .accessibilityValue("\(count), \(expanded.wrappedValue ? "Expanded" : "Collapsed")")
+      .help("Expand or collapse \(title) · Tab then Space")
   }
   private var captureFooter: some View {
     VStack(spacing: 12) {
@@ -346,6 +430,16 @@ public struct PanelView: View {
       }.disabled(!model.authorized)
       HStack {
         Text("j / k to navigate").font(.system(size: 10)).foregroundStyle(palette.secondary)
+        if model.route == .day {
+          Button {
+            DaywellCommand.sections.perform(model)
+          } label: {
+            Text(model.sectionsExpanded ? "s · collapse sections" : "s · expand sections")
+              .font(.system(size: 10))
+          }
+          .disabled(!DaywellCommand.sections.isEnabled(model))
+          .help("Expand / collapse all sections · s")
+        }
         Spacer()
         Button {
           model.route = .help

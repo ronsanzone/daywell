@@ -6,6 +6,8 @@ import Foundation
   public var authorized = true
   public var items: [ReminderItem]
   public init(now: Date = Date()) {
+    // Demo dates are within the calendar's supported range.
+    // swiftlint:disable:next force_unwrapping
     let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
     items = [
       ReminderItem(
@@ -62,6 +64,8 @@ import Foundation
       plan.choose(id, on: now, calendar: .current)
     }
     plan.pin("dentist", on: now, calendar: .current)
+    // Demo dates are within the calendar's supported range.
+    // swiftlint:disable:next force_unwrapping
     let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
     for id in ["plants", "read"] { plan.choose(id, on: yesterday, calendar: .current) }
     return plan

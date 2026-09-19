@@ -95,7 +95,11 @@ import EventKit
         initial.lists.contains { $0.id == list.calendarIdentifier && $0.isWritable },
         "new list is visible and writable through the app adapter")
       let calendar = Calendar.current
-      let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+      guard
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))
+      else {
+        throw CocoaError(.validationMissingMandatoryProperty)
+      }
       var item = try await store.save(
         ReminderItem(
           id: "", title: "\(prefix) capture", notes: "Disposable fixture",
