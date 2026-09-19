@@ -7,11 +7,13 @@ Working product name; trademark and distribution-name availability have not been
 
 ## Status
 
-Local development build of the approved v1, September 18, 2026. Native SwiftUI
-and AppKit interface with EventKit integration, fixture-based verification,
-and three themes. The isolated live Reminders acceptance run passed, including
-the approved recurring-undo safeguard and fixture cleanup. Not notarized or
-release-ready: broader integration and full accessibility acceptance remain.
+[Development Preview 2](https://github.com/ronsanzone/daywell/releases/tag/v0.1.0-dev.2),
+September 19, 2026: inline reminder lists, a wider native panel, safer capture,
+backup recovery, and repeatable quality checks. Native SwiftUI/AppKit with three
+themes and EventKit integration. The prior build passed isolated live Reminders
+acceptance; this preview was verified with disposable fixtures, not a new live run.
+Ad-hoc signed and not notarized; broader integration and full accessibility
+acceptance remain. See the [release notes](docs/releases/v0.1.0-dev.2.md).
 
 - [Approved functionality](docs/design/functionality.md)
 - [Visual style guide and saved references](docs/design/visual-style-guide.md)
@@ -49,11 +51,20 @@ local development, not a portable notarized download.
 - Control–Option–Space: open/close from anywhere; configurable in Settings.
 - `j/k`, arrows: next/previous; `gg/G`: first/last; `h/l`: back/open.
 - `p`: pin; `a`: choose for My Day; `r`: release; `x`: complete/reopen; `d`: Done today.
+- `s`: expand/collapse all secondary sections and lists. Click a heading, or
+  focus it with Tab and press Space, to toggle one section.
 - ⌘N: capture; ⌘F: browse/search; ⌘K: commands; ⌘,: settings; `?`: help.
 - ⌘Return: save capture/edit; ⌘Z: undo completion outside text entry.
 - Escape leaves text entry, then returns to My Day, then closes the panel.
 - Letters always type normally inside fields. Tab traverses native controls;
   macOS Keyboard Navigation may be needed for all controls.
+
+My Day stays visible above inline **Your Lists**. Due & overdue, From yesterday,
+Done today, and each list start collapsed on launch; expansion is session-only.
+List counts and collapsed previews include unfinished reminders not in My Day.
+Expanded lists offer **+** to choose a reminder without changing its deadline or
+source list. Rows already visible in an expanded date section are referenced
+rather than repeated. Capture remains fixed below the scrolling content.
 
 Repeating reminders can be completed, but when Apple Reminders advances the
 series, Daywell explicitly reports that undo is unavailable. It does not move
@@ -68,8 +79,24 @@ The preview lets you change the phrase or remove its deadline before saving.
 My Day membership never changes a reminder's deadline or list. Companion choices
 are stored in `~/Library/Application Support/Daywell/day-plan.json`, with a
 last-good `.backup`; settings use UserDefaults. No companion cloud sync exists.
+If the plan is unreadable, use **Restore day-plan backup…** and confirm recovery.
+Recovery validates the backup and preserves the corrupt original beside the plan;
+it never replaces a newer unsupported schema or changes Apple Reminders.
 
 ## Development checks
+
+```sh
+bash scripts/check.sh
+```
+
+If required development tools are missing, run
+`bash scripts/bootstrap-tools.sh` explicitly, then rerun the check. Ordinary
+checks never access live EventKit, write personal reminders, package/install the
+app, or re-sign the approved app. See the
+[development reference](docs/development.md) for focused commands and Swift
+conventions.
+
+Fixture-backed native UI checks and snapshots are separate:
 
 ```sh
 swift build --product Daywell
@@ -80,15 +107,16 @@ mkdir -p artifacts
 ```
 
 Snapshot options include `--theme graphite|sage|plum`, `--view
-day|browse|capture|commands|help|settings|edit`, `--previous`, `--empty`,
-`--permission`, `--long-title`, `--error`, and `--unpinned`.
+day|browse|capture|commands|help|settings|edit`, `--previous`, `--due`, `--lists`, `--empty`,
+`--permission`, `--long-title`, `--error`, `--recovery`, and `--unpinned`.
 These render the actual SwiftUI interface with disposable demo data.
-`--ui-check` posts AppKit keyboard events through the running application.
+`--lists` opens the inline lists; `--due` opens Due & overdue.
+`--ui-check` posts AppKit keyboard and pointer events through the running application.
 It is not a substitute for live EventKit, cross-application hotkey, or VoiceOver tests.
 
 An explicit `--live-check` mode creates a new **Daywell Test** list, exercises the
 real EventKit adapter using disposable reminders, then cleans up its own fixtures.
-It changes real Reminders data and must only be run with authorization. Launch it
+It changes real Reminders data and requires explicit human authorization. Launch it
 through `open` so macOS attributes the permission request to Daywell rather than
 the terminal. See the [live acceptance instructions](docs/verification.md#authorized-live-acceptance-attempt).
 Ordinary operations and the recurring-completion safeguard passed live checks.
@@ -102,5 +130,5 @@ see the verification report for coverage and remaining release checks.
 - [Personal Amp project](https://ampcode.com/@user_01KXFD6ZER08KBZSCQQ8YG7VM4/daywell)
 - [Discovery and approval thread](https://ampcode.com/threads/T-01a0b56d-fed3-701e-87cc-178e8363ac7d)
 
-The original Amp remote is retained as `origin`; the private GitHub repository is
-the `github` remote. The existing discovery thread has not been moved or reassociated.
+The private GitHub repository is `origin`; the original Amp remote is retained as
+`amp`. The existing discovery thread has not been moved or reassociated.

@@ -3,6 +3,63 @@
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 
+## Development Preview 2 release — September 19, 2026
+
+After explicit approval to release the complete checkout:
+
+- Re-ran `bash scripts/check.sh`: formatting, lint, boundaries, build, and all
+  **61 tests passed**. The debug native event harness passed **39 checks**.
+- Built a fresh optimized Apple Silicon bundle with `bash scripts/build-app.sh`.
+  Version is **0.1.0**, build **2**. The newly built bundle's fixture-only
+  `--ui-check` passed the same **39 checks**.
+- `codesign --verify --deep --strict` and `plutil -lint` passed. Inspected a fresh
+  bundle-rendered snapshot at `artifacts/release-panel.png`.
+- Packaged `Daywell-v0.1.0-dev.2-macos-arm64.zip`, extracted it again, verified its
+  signature, and compared the extracted executable with the tested executable.
+  The [release notes](releases/v0.1.0-dev.2.md) record the archive checksum.
+- The bundle is ad-hoc signed, not notarized. No live EventKit acceptance or
+  personal reminder writes occurred; no installation was performed. Replacing
+  the local `dist/Daywell.app` and re-signing it were authorized for this release.
+
+The implementation-stage entries below describe their state before packaging.
+
+## Inline reminder lists — September 19, 2026
+
+- `bash scripts/check.sh` passed: formatting, zero SwiftLint violations,
+  dependency boundaries, build, and **61 tests**. The new regressions cover
+  collapsed defaults, section toggling without data changes, grouped remaining
+  reminders, read-only lists, stable counts, selection reconciliation, and
+  session-only expansion state.
+- `.build/debug/Daywell --ui-check` passed **39 checks**, including actual
+  pointer clicks to expand/collapse a list and choose a reminder with its plus
+  button, `s` expansion/collapse, skipping hidden rows, and literal `s` in capture.
+  Pointer checks use logical coordinates in the fixed fixture layout, not AX
+  discovery; this is not a VoiceOver or full Tab-traversal acceptance test.
+- Inspected fresh native `artifacts/inline-*.png` snapshots: collapsed and
+  expanded lists, all date sections open, all three themes, long/unpinned title,
+  empty, error, and permission states. Overflow stays in the scroll region;
+  capture stays below it. Busy/read-only action policy is covered by model tests.
+- No live EventKit access, packaging, installation, or re-signing. The existing
+  `dist/Daywell.app` is unchanged; use `.build/debug/Daywell --demo` to try this build
+  with disposable data.
+
+## Quality follow-up — September 19, 2026
+
+- `bash scripts/check.sh` passed: toolchain formatting, SwiftLint 0.65.1
+  (**zero violations**), Core dependency boundary scan, build, and **56 tests**.
+- `.build/debug/Daywell --ui-check` passed **21 fixture-backed keyboard checks**.
+- Inspected fresh day, capture, permission, and backup-recovery snapshots in
+  `artifacts/quality-*.png`. The recovery control and error banner are readable.
+- New regressions cover capture partial success and submitted intent, inbox
+  selection, busy/read-only action policy, preserved deletion snapshots, and
+  validated recovery without overwriting future schemas or corrupt evidence.
+- CI is configured but not yet run remotely. Pointer-path and recovery-alert
+  acceptance remain manual; model tests do not substitute for those checks.
+- No live Reminders checks, app packaging, installation, or re-signing occurred.
+  `dist/Daywell.app` still contains the prior build, not these source changes.
+
+The live results below are historical evidence for the September 18 build.
+
 ## Latest live result — passed
 
 After Ron approved the unchanged bundle, `artifacts/live-check-6.log` confirmed:
