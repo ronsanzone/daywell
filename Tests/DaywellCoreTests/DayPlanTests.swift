@@ -6,12 +6,16 @@ import Testing
 @Suite struct DayPlanTests {
   let calendar: Calendar = {
     var value = Calendar(identifier: .gregorian)
+    // Fixed IANA identifier supplied by macOS tzdata.
+    // swiftlint:disable:next force_unwrapping
     value.timeZone = TimeZone(identifier: "America/New_York")!
     value.locale = Locale(identifier: "en_US_POSIX")
     return value
   }()
 
   func date(_ value: String) -> Date {
+    // All call sites pass fixed ISO-8601 fixture literals.
+    // swiftlint:disable:next force_unwrapping
     ISO8601DateFormatter().date(from: value)!
   }
 

@@ -6,6 +6,8 @@ import Testing
 struct CaptureParserTests {
   private let calendar: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
+    // Fixed IANA identifier supplied by macOS tzdata.
+    // swiftlint:disable:next force_unwrapping
     calendar.timeZone = TimeZone(identifier: "America/New_York")!
     calendar.locale = Locale(identifier: "en_US_POSIX")
     return calendar
@@ -15,6 +17,8 @@ struct CaptureParserTests {
     -> Date
   {
     calendar.date(
+      // Call sites supply valid Gregorian fixture components.
+      // swiftlint:disable:next force_unwrapping
       from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
   }
 
@@ -104,10 +108,11 @@ struct CaptureParserTests {
     #expect(result.dueDate == nil)
   }
 
-  @Test func halfHourDSTOverlapAlsoFallsBack() {
+  @Test func halfHourDSTOverlapAlsoFallsBack() throws {
     var lordHowe = Calendar(identifier: .gregorian)
-    lordHowe.timeZone = TimeZone(identifier: "Australia/Lord_Howe")!
-    let now = lordHowe.date(from: DateComponents(year: 2026, month: 4, day: 4, hour: 12))!
+    lordHowe.timeZone = try #require(TimeZone(identifier: "Australia/Lord_Howe"))
+    let now = try #require(
+      lordHowe.date(from: DateComponents(year: 2026, month: 4, day: 4, hour: 12)))
     let input = "Wake tomorrow at 1:45am"
     let result = CaptureParser.parse(input, now: now, calendar: lordHowe)
     #expect(result.dueDate == nil)

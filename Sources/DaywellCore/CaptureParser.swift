@@ -68,6 +68,8 @@ public enum CaptureParser {
     )
   }
 
+  // Constant pattern; parser tests exercise its compilation.
+  // swiftlint:disable:next force_try
   private static let suffix = try! NSRegularExpression(
     pattern:
       #"^(.+?)\s+((?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tomorrow)(?:\s+at\s+(noon|midnight|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}))?$"#,
