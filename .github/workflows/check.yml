@@ -16,13 +16,16 @@ jobs:
   check:
     runs-on: macos-15
     timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install Swift 6.2.4
-        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2
-        with:
-          swift-version: "6.2.4"
+      - name: Verify Apple Swift 6.2.4
+        run: |
+          xcodebuild -version
+          swift --version | tee /tmp/daywell-swift-version.txt
+          grep -F 'Apple Swift version 6.2.4 ' /tmp/daywell-swift-version.txt
       - name: Bootstrap pinned tools
         run: bash scripts/bootstrap-tools.sh
       - name: Run checks
