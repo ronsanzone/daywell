@@ -7,13 +7,14 @@ Working product name; trademark and distribution-name availability have not been
 
 ## Status
 
-[Development Preview 2](https://github.com/ronsanzone/daywell/releases/tag/v0.1.0-dev.2),
-September 19, 2026: inline reminder lists, a wider native panel, safer capture,
-backup recovery, and repeatable quality checks. Native SwiftUI/AppKit with three
-themes and EventKit integration. The prior build passed isolated live Reminders
-acceptance; this preview was verified with disposable fixtures, not a new live run.
+[Development Preview 3](https://github.com/ronsanzone/daywell/releases/tag/v0.1.0-dev.3):
+Amber CRT, the Orbital Relay, selection and completion animations, and a task
+patchbay alongside existing inline lists, safer capture, and backup recovery.
+Native SwiftUI/AppKit with four themes and EventKit integration. A prior build
+passed isolated live Reminders acceptance; this preview was verified with
+disposable fixtures, not a new live run.
 Ad-hoc signed and not notarized; broader integration and full accessibility
-acceptance remain. See the [release notes](docs/releases/v0.1.0-dev.2.md).
+acceptance remain. See the [release notes](docs/releases/v0.1.0-dev.3.md).
 
 - [Approved functionality](docs/design/functionality.md)
 - [Visual style guide and saved references](docs/design/visual-style-guide.md)

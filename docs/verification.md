@@ -3,6 +3,19 @@
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 
+## Development Preview 3 release
+
+- Re-ran `bash scripts/check.sh`: formatting, lint, boundaries, build, and all
+  **71 tests passed**. Built the optimized Apple Silicon bundle as **0.1.0 (3)**.
+- The packaged executable passed **58 fixture-backed native UI checks each in
+  Graphite and Amber**. Inspected its fresh Amber patchbay snapshot at 85% CRT.
+- Signature and metadata validation passed. Extracted the ZIP and compared its
+  executable and metadata with the tested bundle. The
+  [release notes](releases/v0.1.0-dev.3.md) record its SHA-256 checksum.
+- Packaging/re-signing the local `dist/Daywell.app` and GitHub publication were
+  authorized for this release. No installation or live EventKit access occurred.
+  This remains an ad-hoc-signed, non-notarized development preview.
+
 ## Terminal motion and task patchbay — source build
 
 - `bash scripts/check.sh` passed: formatting, SwiftLint, dependency boundaries,
