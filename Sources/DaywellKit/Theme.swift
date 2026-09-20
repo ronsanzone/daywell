@@ -75,6 +75,9 @@ extension Color {
     }
   }
   public var showCount: Bool { didSet { defaults.set(showCount, forKey: "showCount") } }
+  public var terminalMotion: Bool {
+    didSet { defaults.set(terminalMotion, forKey: "terminalMotion") }
+  }
   public var inboxID: String { didSet { defaults.set(inboxID, forKey: "inboxID") } }
   public var shortcutKey: Int { didSet { defaults.set(shortcutKey, forKey: "shortcutKey") } }
   public var shortcutModifiers: Int {
@@ -86,6 +89,7 @@ extension Color {
     storedCRTIntensity = Self.boundedIntensity(
       defaults.object(forKey: "crtIntensity") as? Double ?? 0.65)
     showCount = defaults.bool(forKey: "showCount")
+    terminalMotion = defaults.object(forKey: "terminalMotion") as? Bool ?? true
     inboxID = defaults.string(forKey: "inboxID") ?? ""
     shortcutKey = defaults.object(forKey: "shortcutKey") as? Int ?? 49
     shortcutModifiers = defaults.object(forKey: "shortcutModifiers") as? Int ?? 6144
@@ -93,5 +97,9 @@ extension Color {
 
   private static func boundedIntensity(_ value: Double) -> Double {
     value.isFinite ? min(1, max(0, value)) : 0.65
+  }
+
+  public func allowsMotion(reduceMotion: Bool, isPresented: Bool) -> Bool {
+    theme == .amber && terminalMotion && !reduceMotion && isPresented
   }
 }

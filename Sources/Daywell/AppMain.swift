@@ -137,7 +137,8 @@ final class MenuBarPanel: NSPanel {
     statusItem.button?.target = self
     statusItem.button?.action = #selector(togglePanel)
     statusItem.button?.toolTip = demo ? "Daywell — demo reminders" : "Daywell"
-    hosting = KeyboardHostingView(rootView: PanelView(model: model, preferences: preferences))
+    hosting = KeyboardHostingView(
+      rootView: PanelView(model: model, preferences: preferences, isPresented: false))
     panel.contentView = hosting
     panel.level = .popUpMenu
     panel.hasShadow = true
@@ -230,6 +231,7 @@ final class MenuBarPanel: NSPanel {
     }
     previousApp = NSWorkspace.shared.frontmostApplication
     Task { await refresh() }
+    hosting.rootView = PanelView(model: model, preferences: preferences, isPresented: true)
     positionPanel()
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
@@ -254,6 +256,8 @@ final class MenuBarPanel: NSPanel {
 
   private func dismissPanel(restoreFocus: Bool = true) {
     guard panel.isVisible else { return }
+    // orderOut doesn't remove the SwiftUI hierarchy; explicitly stop decorative timelines.
+    hosting.rootView = PanelView(model: model, preferences: preferences, isPresented: false)
     panel.orderOut(nil)
     statusItem.button?.highlight(false)
     navigation = VimNavigation()
@@ -309,7 +313,10 @@ final class MenuBarPanel: NSPanel {
       model.navigate(.back)
       return nil
     }
-    guard model.route == .day || model.route == .browse || model.route == .commands else {
+    guard
+      model.route == .day || model.route == .browse || model.route == .commands
+        || model.route == .patchbay
+    else {
       return event
     }
     if let action = navigation.action(for: character, isEditing: false) {

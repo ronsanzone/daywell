@@ -7,6 +7,32 @@ import Testing
 @testable import DaywellKit
 
 struct CRTTests {
+  @MainActor @Test func motionIsOptInToAmberAndRespectsAccessibilityAndVisibility() throws {
+    let name = "daywell.tests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let preferences = Preferences(defaults: defaults)
+    #expect(!preferences.allowsMotion(reduceMotion: false, isPresented: true))
+    preferences.theme = .amber
+    #expect(preferences.allowsMotion(reduceMotion: false, isPresented: true))
+    #expect(!preferences.allowsMotion(reduceMotion: true, isPresented: true))
+    #expect(!preferences.allowsMotion(reduceMotion: false, isPresented: false))
+    preferences.terminalMotion = false
+    #expect(!preferences.allowsMotion(reduceMotion: false, isPresented: true))
+    #expect(!Preferences(defaults: defaults).terminalMotion)
+  }
+
+  @MainActor @Test func relayAlignsOnOpeningThenRestsBetweenDrifts() {
+    #expect(OrbitalRelay.angle(at: 0) == -90)
+    #expect(abs(OrbitalRelay.angle(at: 0.35) + 45) < 0.001)
+    #expect(OrbitalRelay.angle(at: 1) == 0)
+    #expect(OrbitalRelay.angle(at: 4.6) == 0)
+    #expect(abs(OrbitalRelay.angle(at: 6.2) - 180) < 0.001)
+    #expect(OrbitalRelay.angle(at: 8) == 360)
+    #expect(OrbitalRelay.angle(at: 12.6) == 360)
+    #expect(OrbitalRelay.angle(at: 13) == 0)
+  }
+
   @MainActor @Test func intensityPersistsIncludingZeroAndIsBounded() throws {
     let name = "daywell.tests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: name))

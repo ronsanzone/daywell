@@ -75,6 +75,98 @@ import Testing
     }
   }
 
+  @Test func feedbackFollowsConfirmedWritesNotRefreshOrFailedWrites() async throws {
+    try await withModel { model, store in
+      #expect(model.feedback == nil)
+      store.failWrites = true
+      await model.complete("a")
+      #expect(model.feedback == nil)
+      store.failWrites = false
+      store.beforeSave = {
+        #expect(model.busy)
+        #expect(!DaywellCommand.choose.isEnabled(model, reminderID: "a"))
+        await Task.yield()
+        #expect(model.feedback == nil)
+      }
+      // A successful write must remain visible even if the following fetch fails.
+      store.fetchHandler = { throw ReminderError.denied }
+      await model.complete("a")
+      let completed = try #require(model.feedback)
+      #expect(completed.kind == .completed)
+      #expect(completed.reminder.id == "a")
+      #expect(model.reminders.first?.isCompleted == true)
+      #expect(model.error != nil)
+      await model.refresh()
+      #expect(model.feedback == completed)
+      store.beforeSave = { #expect(model.feedback == completed) }
+      await model.undoCompletion()
+      #expect(model.feedback?.kind == .reopened)
+      #expect(model.feedback?.id != completed.id)
+      #expect(model.reminders.first?.isCompleted == false)
+      #expect(model.undo == nil)
+    }
+  }
+
+  @Test func unconfirmedCompletionDoesNotCelebrate() async throws {
+    try await withModel { model, store in
+      store.ignoreCompletion = true
+      await model.complete("a")
+      #expect(model.feedback == nil)
+      #expect(model.error != nil)
+    }
+  }
+
+  @Test func unconfirmedUndoKeepsUndoAndDoesNotEmitAnotherCelebration() async throws {
+    try await withModel { model, store in
+      store.items[0].isCompleted = true
+      await model.refresh()
+      await model.complete("a")
+      let reopened = try #require(model.feedback)
+      #expect(reopened.kind == .reopened)
+      store.ignoreCompletion = true
+      await model.undoCompletion()
+      #expect(model.feedback == reopened)
+      #expect(model.undo != nil)
+      #expect(model.error != nil)
+      #expect(model.reminders.first?.isCompleted == false)
+    }
+  }
+
+  @Test func patchbayKeepsSourceAndKeyboardRouteWithoutRemoteWrites() async throws {
+    try await withModel { model, store in
+      let original = store.items
+      store.failWrites = true
+      model.route = .patchbay
+      #expect(model.visibleItems.map(\.id) == ["a"])
+      DaywellCommand.choose.perform(model)
+      #expect(model.route == .patchbay)
+      #expect(model.projection.today.map(\.id) == ["a"])
+      #expect(model.patchbayLists.flatMap(\.items) == original)
+      #expect(model.visibleItems == original)
+      #expect(store.items == original)
+      #expect(model.error == nil)
+      #expect(try model.planStore.load().commitments.map(\.reminderID) == ["a"])
+      let feedback = try #require(model.feedback)
+      #expect(feedback.kind == .chosen)
+      model.choose("a")
+      #expect(model.feedback == feedback)
+      DaywellCommand.release.perform(model)
+      #expect(model.route == .patchbay)
+      #expect(model.projection.today.isEmpty)
+    }
+  }
+
+  @Test func failedLocalChoiceDoesNotEmitFeedback() async throws {
+    try await withModel { model, _ in
+      try FileManager.default.createDirectory(
+        at: model.planStore.url, withIntermediateDirectories: true)
+      model.choose("a")
+      #expect(model.feedback == nil)
+      #expect(model.projection.today.isEmpty)
+      #expect(model.error != nil)
+    }
+  }
+
   @Test func sectionsShortcutRevealsLibraryWithoutChangingRemindersOrPlan() async throws {
     try await withModel { model, store in
       let original = store.items

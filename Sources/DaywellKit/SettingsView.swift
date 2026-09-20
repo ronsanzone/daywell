@@ -40,6 +40,13 @@ struct SettingsView: View {
               Text("0%: amber only · 100%: full phosphor. Static texture; no flicker or motion.")
                 .font(.system(size: 11)).foregroundStyle(preferences.theme.colors.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+              Toggle("Terminal motion", isOn: $preferences.terminalMotion)
+                .font(.system(size: 12)).padding(.top, 8)
+              Text(
+                "Orbital relay, focus trails, and confirmed-action traces. Respects Reduce Motion; pauses when closed."
+              )
+              .font(.system(size: 11)).foregroundStyle(preferences.theme.colors.secondary)
+              .fixedSize(horizontal: false, vertical: true)
             }.padding(.horizontal, 9)
           }
         }

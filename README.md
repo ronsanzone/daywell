@@ -51,6 +51,7 @@ local development, not a portable notarized download.
 - Control–Option–Space: open/close from anywhere; configurable in Settings.
 - `j/k`, arrows: next/previous; `gg/G`: first/last; `h/l`: back/open.
 - `p`: pin; `a`: choose for My Day; `r`: release; `x`: complete/reopen; `d`: Done today.
+- `b`: open the task patchbay: source lists on the left, My Day on the right.
 - `s`: expand/collapse all secondary sections and lists. Click a heading, or
   focus it with Tab and press Space, to toggle one section.
 - ⌘N: capture; ⌘F: browse/search; ⌘K: commands; ⌘,: settings; `?`: help.
@@ -86,22 +87,34 @@ it never replaces a newer unsupported schema or changes Apple Reminders.
 ## Amber CRT experiment
 
 The source build includes an opt-in **Amber CRT · experimental** theme in Settings.
-It keeps the current layout, with amber colors, phosphor-style text/selection glow,
-and a Metal-generated scanline, grain, and vignette surface. The intensity slider
-defaults to 65%; 0% keeps only the amber palette and typography. Existing themes
-and the default remain unchanged.
+It adds amber colors, phosphor-style text/selection glow, and a Metal-generated
+scanline, grain, and vignette surface. The intensity slider defaults to 65%; 0%
+removes that texture and glow. Graphite remains the default.
+
+**Terminal motion** adds a small decorative Orbital Relay beside My Day, a 220 ms
+selection afterglow, and completion/Undo traces after confirmed saves. The relay
+aligns on opening and rests between slow rotations; it conveys no task or sync
+status. Turn motion off independently of CRT intensity in Settings. macOS Reduce
+Motion also disables it, and closing the panel stops the animation timelines.
+
+The **task patchbay** is available in every theme. Use its header button or `b`,
+then choose with **+**, `a`, or drag a reminder to the right pane. Source reminders
+stay in their Apple lists and show **Chosen**; the right-hand minus removes only
+the local My Day commitment. Amber sends a brief signal across the gutter after
+the plan saves. Existing inline lists and ⌘F search remain available.
 
 Try it without installing or re-signing the approved app, and without live Reminders:
 
 ```sh
 swift build --product Daywell
-.build/debug/Daywell --demo --theme amber --crt-intensity 0.65
+.build/debug/Daywell --demo --theme amber --crt-intensity 0.85
 ```
 
 The shader compiles at runtime (no offline Metal compiler required) and generates
-a static texture when its surface is created or resized. There is no continuous
-render loop, flicker, distortion, or afterimage animation. Text entry remains native;
-if Metal is unavailable, an on-screen notice explains the texture fallback.
+a static texture when its surface is created or resized. The texture itself has
+no continuous render loop, flicker, or distortion; optional motion uses separate
+SwiftUI timelines. Text entry remains native. If Metal is unavailable, an
+on-screen notice explains the texture fallback.
 Demo preferences are disposable. Use Settings in a normal source-built session to
 persist a theme; the existing installed release has not been updated by this experiment.
 
@@ -129,10 +142,19 @@ mkdir -p artifacts
 ```
 
 Snapshot options include `--theme graphite|sage|plum|amber`, `--crt-intensity 0…1`, `--view
-day|browse|capture|commands|help|settings|edit`, `--previous`, `--due`, `--lists`, `--empty`,
+day|browse|patchbay|capture|commands|help|settings|edit`, `--previous`, `--due`, `--lists`, `--empty`,
 `--permission`, `--long-title`, `--error`, `--recovery`, and `--unpinned`.
 These render the actual SwiftUI interface with disposable demo data.
 `--lists` opens the inline lists; `--due` opens Due & overdue.
+`--no-motion` renders with terminal motion disabled. To capture native animation
+frames (selection, completion, Undo, patchbay choice, and relay drift):
+
+```sh
+.build/debug/Daywell --snapshot artifacts/terminal-final.png \
+  --theme amber --crt-intensity 0.85 --motion-sequence artifacts/terminal-frames
+```
+
+The sequence writes 200 PNG frames at a target 20 fps using disposable reminders.
 `--ui-check` posts AppKit keyboard and pointer events through the running application.
 It is not a substitute for live EventKit, cross-application hotkey, or VoiceOver tests.
 

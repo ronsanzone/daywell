@@ -7,12 +7,21 @@ public struct PanelView: View {
   @Bindable var preferences: Preferences
   @FocusState private var browseSearchFocused: Bool
   @State private var confirmRecovery = false
-  public init(model: AppModel, preferences: Preferences) {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var frames: [String: CGRect] = [:]
+  @State private var previousFrames: [String: CGRect] = [:]
+  @State private var flight: (feedback: ReminderFeedback, start: CGPoint)?
+  public let isPresented: Bool
+  public init(model: AppModel, preferences: Preferences, isPresented: Bool = true) {
     self.model = model
     self.preferences = preferences
+    self.isPresented = isPresented
   }
   var palette: Palette { preferences.theme.colors }
   private var crtIntensity: Double { preferences.theme == .amber ? preferences.crtIntensity : 0 }
+  private var motionActive: Bool {
+    preferences.allowsMotion(reduceMotion: reduceMotion, isPresented: isPresented)
+  }
 
   public var body: some View {
     VStack(spacing: 0) {
@@ -48,6 +57,9 @@ public struct PanelView: View {
         switch model.route {
         case .day: dayView
         case .browse: browseView
+        case .patchbay:
+          PatchbayView(
+            model: model, palette: palette, motionActive: motionActive, intensity: crtIntensity)
         case .capture: CaptureView(model: model, palette: palette)
         case .commands: CommandPalette(model: model, palette: palette)
         case .help: shortcutHelp
@@ -61,7 +73,7 @@ public struct PanelView: View {
         }
       }
       Spacer(minLength: 0)
-      if model.route == .day || model.route == .browse {
+      if model.route == .day || model.route == .browse || model.route == .patchbay {
         if let notice = model.notice {
           HStack {
             Text(notice).font(.system(size: 11)).foregroundStyle(palette.secondary)
@@ -83,6 +95,39 @@ public struct PanelView: View {
     .frame(maxHeight: .infinity)
     .foregroundStyle(palette.text)
     .background(palette.background)
+    .coordinateSpace(name: "daywell-panel")
+    .onPreferenceChange(MotionFrames.self) { updated in
+      previousFrames = frames
+      frames = updated
+    }
+    .overlay {
+      if motionActive, let flight, let end = flightDestination(flight.feedback) {
+        ReminderFlight(feedback: flight.feedback, start: flight.start, end: end, palette: palette) {
+          if self.flight?.feedback.id == flight.feedback.id { self.flight = nil }
+        }.id(flight.feedback.id)
+      }
+    }
+    .clipped()
+    .onChange(of: model.feedback) { _, feedback in
+      guard motionActive, model.authorized, let feedback,
+        model.route == .day || model.route == .patchbay
+      else {
+        return
+      }
+      let key =
+        feedback.kind == .reopened
+        ? "done"
+        : "\(model.route == .patchbay && feedback.kind == .chosen ? "source" : "row"):\(feedback.reminder.id)"
+      if let rect = frames[key] ?? previousFrames[key],
+        let header = frames["header"], let footer = frames["footer"],
+        rect.midY > header.maxY, rect.midY < footer.minY
+      {
+        let x = model.route == .patchbay && feedback.kind == .chosen ? rect.maxX + 2 : rect.midX
+        flight = (feedback, CGPoint(x: x, y: rect.midY))
+      }
+    }
+    .onChange(of: motionActive) { _, _ in flight = nil }
+    .onChange(of: model.route) { _, _ in flight = nil }
     .overlay {
       Rectangle().strokeBorder(palette.secondary.opacity(0.35), lineWidth: 1)
         .allowsHitTesting(false)
@@ -120,22 +165,26 @@ public struct PanelView: View {
         }
         .help("Back to My Day · h / Escape")
       }
+      if preferences.theme == .amber, model.route == .day || model.route == .patchbay {
+        OrbitalRelay(active: motionActive, color: palette.accent)
+      }
       VStack(alignment: .leading, spacing: 4) {
         Text(title).font(
           .system(
             size: 21, weight: .semibold,
             design: preferences.theme == .amber ? .monospaced : .default)
         )
+        .lineLimit(1).minimumScaleFactor(0.8)
         .shadow(color: palette.accent.opacity(crtIntensity * 0.7), radius: crtIntensity * 5)
         Text(model.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
           .font(.system(size: 12)).foregroundStyle(palette.secondary)
-      }
+      }.motionFrame("myday")
       Spacer()
       Button {
-        model.route = .browse
+        DaywellCommand.patchbay.perform(model)
       } label: {
-        Image(systemName: "tray.full")
-      }.help("Browse lists")
+        Image(systemName: "point.3.connected.trianglepath.dotted")
+      }.help("Task patchbay · b").accessibilityLabel("Task patchbay")
       Button {
         model.route = .browse
       } label: {
@@ -149,13 +198,14 @@ public struct PanelView: View {
         ).background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
       }
       .help("Commands · ⌘K")
-    }.padding(.horizontal, 20).padding(.vertical, 16)
+    }.padding(.horizontal, 20).padding(.vertical, 16).motionFrame("header")
   }
 
   private var title: String {
     switch model.route {
     case .day: "My Day"
     case .browse: "Reminders"
+    case .patchbay: "Task patchbay"
     case .capture: "Quick capture"
     case .commands: "Commands"
     case .help: "Keyboard shortcuts"
@@ -174,7 +224,7 @@ public struct PanelView: View {
               Text("Choose 1–3 reminders to begin. You can always add more.").font(
                 .system(size: 13)
               ).foregroundStyle(palette.secondary)
-              Button("Choose reminders") { model.route = .browse }.padding(.top, 4)
+              Button("Choose reminders") { model.route = .patchbay }.padding(.top, 4)
             }.padding(.vertical, 22).padding(.horizontal, 8)
           }
           ForEach(model.projection.today) { reminder in row(reminder) }
@@ -220,6 +270,7 @@ public struct PanelView: View {
             "Done today", count: model.projection.done.count, expanded: $model.doneExpanded
           )
           .padding(.horizontal, 8).padding(.vertical, 14)
+          .motionFrame("done")
           if model.doneExpanded { ForEach(model.projection.done) { reminder in row(reminder) } }
           inlineLists
           if !model.projection.unresolved.isEmpty {
@@ -242,6 +293,7 @@ public struct PanelView: View {
         Spacer()
         Text("Not in My Day").font(.system(size: 11))
       }.foregroundStyle(palette.secondary).padding(.horizontal, 8).padding(.vertical, 12)
+        .motionFrame("lists")
       ForEach(model.dayLists) { section in
         let expanded = model.expandedListIDs.contains(section.id)
         let items = model.inlineListItems(section)
@@ -388,13 +440,22 @@ public struct PanelView: View {
     .padding(.horizontal, 8).padding(.vertical, pinned ? 13 : 10)
     .background(selected ? palette.raised : Color.clear, in: RoundedRectangle(cornerRadius: 6))
     .overlay(
-      RoundedRectangle(cornerRadius: 6).strokeBorder(
-        selected ? palette.accent : Color.clear, lineWidth: 1
-      )
-      .shadow(color: palette.accent.opacity(crtIntensity * 0.8), radius: crtIntensity * 5)
-      .allowsHitTesting(false)
+      PhosphorSelection(
+        selected: selected, active: motionActive, color: palette.accent, intensity: crtIntensity)
     )
+    .motionFrame("row:\(reminder.id)")
     .id(reminder.id)
+  }
+
+  private func flightDestination(_ feedback: ReminderFeedback) -> CGPoint? {
+    let chosen = model.projection.today.contains { $0.id == feedback.reminder.id }
+    let key =
+      feedback.kind == .completed
+      ? "done"
+      : "\(model.route == .patchbay && !chosen ? "source" : "row"):\(feedback.reminder.id)"
+    guard let rect = frames[key] ?? frames[chosen ? "myday" : "lists"] else { return nil }
+    let x = model.route == .patchbay && feedback.kind == .chosen ? rect.minX - 2 : rect.midX
+    return CGPoint(x: x, y: rect.midY)
   }
 
   private func dueLabel(_ date: Date, timed: Bool) -> String {
@@ -467,7 +528,7 @@ public struct PanelView: View {
           Image(systemName: "gearshape")
         }.help("Settings · ⌘,")
       }
-    }.padding(.horizontal, 20).padding(.bottom, 16)
+    }.padding(.horizontal, 20).padding(.bottom, 16).motionFrame("footer")
   }
   private var permissionView: some View {
     VStack(alignment: .leading, spacing: 18) {

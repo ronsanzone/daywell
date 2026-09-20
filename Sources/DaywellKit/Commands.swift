@@ -2,12 +2,13 @@ import AppKit
 
 public enum DaywellCommand: String, CaseIterable, Identifiable {
   case capture, browse, choose, pin, complete, edit, release, undo, reset, done, keepAll,
-    releaseAll, delete, help, settings, appleReminders, quit, sections
+    releaseAll, delete, help, settings, appleReminders, quit, sections, patchbay
   public var id: String { rawValue }
   public var title: String {
     switch self {
     case .capture: "Add reminder"
     case .browse: "Search reminders"
+    case .patchbay: "Open task patchbay"
     case .choose: "Add selected to My Day"
     case .pin: "Pin / unpin selected reminder"
     case .complete: "Complete / reopen reminder"
@@ -30,6 +31,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable {
     switch self {
     case .capture: "plus"
     case .browse: "magnifyingglass"
+    case .patchbay: "point.3.connected.trianglepath.dotted"
     case .choose: "sun.max"
     case .pin: "pin"
     case .complete: "checkmark.circle"
@@ -52,6 +54,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable {
     switch self {
     case .capture: ("n", true)
     case .browse: ("f", true)
+    case .patchbay: ("b", false)
     case .choose: ("a", false)
     case .pin: ("p", false)
     case .complete: ("x", false)
@@ -92,23 +95,24 @@ public enum DaywellCommand: String, CaseIterable, Identifiable {
     switch self {
     case .capture: model.route = .capture
     case .browse: model.route = .browse
+    case .patchbay: model.route = .patchbay
     case .choose:
       if let id = model.selectedID { model.choose(id) }
-      model.route = .day
+      if model.route != .patchbay { model.route = .day }
     case .pin:
       if let id = model.selectedID { model.pin(id) }
-      model.route = .day
+      if model.route != .patchbay { model.route = .day }
     case .complete:
       if let id = model.selectedID { Task { await model.complete(id) } }
-      model.route = .day
+      if model.route != .patchbay { model.route = .day }
     case .edit:
       if let id = model.selectedID { model.edit(id) }
     case .release:
       if let id = model.selectedID { model.release(id) }
-      model.route = .day
+      if model.route != .patchbay { model.route = .day }
     case .undo:
       Task { await model.undoCompletion() }
-      model.route = .day
+      if model.route != .patchbay { model.route = .day }
     case .reset:
       model.previousExpanded = true
       model.route = .day

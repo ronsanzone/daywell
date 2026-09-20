@@ -3,6 +3,29 @@
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 
+## Terminal motion and task patchbay — source build
+
+- `bash scripts/check.sh` passed: formatting, SwiftLint, dependency boundaries,
+  build, and **71 tests**. New regressions cover confirmed-write-only feedback,
+  refresh failure after success, unconfirmed completion/Undo, local choice failure,
+  duplicate choices, preserved source reminders, and the motion/accessibility policy.
+- The native `--ui-check` passed **58 checks each in Graphite and Amber**. Added
+  actual pointer selection in the patchbay, `b/a/r/x/⌘Z/h`, the Terminal motion
+  checkbox, and explicit panel visibility lifecycle checks. Busy/read-only write
+  policy is covered by model tests; this is not a full accessibility acceptance run.
+- Inspected native animation keyframes at **85% CRT**: selection afterglow,
+  completion contraction, Undo return, the gutter signal, and relay drift.
+  The fixture-only `--motion-sequence` writes 200 PNG frames, without time injection
+  into production views. Compared corresponding motion-off frames pixel-for-pixel:
+  selection, completion, Undo, and choosing remain stable after their state changes.
+- Inspected long-title, error, permission, empty, Graphite, and motion-off layouts.
+  Source overflow stays inside its scroll view. Local captures are in
+  `artifacts/terminal-motion/`, including an animated `demo.gif` and a keyframe sheet.
+- **Remaining manual checks:** a physical native drag/drop, VoiceOver and full Tab
+  navigation, and toggling macOS Reduce Motion itself. Its shared policy is tested,
+  but the system setting was not changed. No new live EventKit, packaging,
+  installation, re-signing, or release publication occurred.
+
 ## Development Preview 2 release — September 19, 2026
 
 After explicit approval to release the complete checkout:

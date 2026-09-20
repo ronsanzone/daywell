@@ -40,6 +40,7 @@ import Observation
   public var pendingDelete: ReminderItem?
   public var notice: String?
   public private(set) var undo: (before: ReminderItem, after: ReminderItem)?
+  public private(set) var feedback: ReminderFeedback?
   private var storageAvailable = true
   public var recoveryRequired: Bool { !storageAvailable }
   private var refreshID = UUID()
@@ -100,6 +101,7 @@ import Observation
   }
   public var visibleItems: [ReminderItem] {
     if route == .browse { return browsed }
+    if route == .patchbay { return patchbayLists.flatMap(\.items) }
     let p = projection
     // A reminder can appear in a date section and its source list; navigate each identity once.
     var seen = Set<String>()
@@ -116,6 +118,15 @@ import Observation
     let remaining = reminders.filter { !$0.isCompleted && !chosen.contains($0.id) }
       .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     let grouped = Dictionary(grouping: remaining, by: \.listID)
+    return lists.map { ReminderListSection(list: $0, items: grouped[$0.id] ?? []) }
+  }
+
+  /// Chosen reminders stay in their source list; this is a local plan, not a move.
+  public var patchbayLists: [ReminderListSection] {
+    let grouped = Dictionary(
+      grouping: reminders.filter { !$0.isCompleted }.sorted {
+        $0.title.localizedStandardCompare($1.title) == .orderedAscending
+      }, by: \.listID)
     return lists.map { ReminderListSection(list: $0, items: grouped[$0.id] ?? []) }
   }
 
@@ -176,15 +187,20 @@ import Observation
   }
 
   private func reconcileSelection() {
-    guard route == .day || route == .browse else { return }
+    guard route == .day || route == .browse || route == .patchbay else { return }
     if !visibleItems.contains(where: { $0.id == selectedID }) {
       selectedID = visibleItems.first?.id
     }
   }
 
   public func choose(_ id: String) {
-    guard DaywellCommand.choose.isEnabled(self, reminderID: id) else { return }
-    updatePlan { $0.choose(id, on: now, calendar: calendar) }
+    guard DaywellCommand.choose.isEnabled(self, reminderID: id),
+      !projection.today.contains(where: { $0.id == id }),
+      let reminder = reminders.first(where: { $0.id == id })
+    else { return }
+    if updatePlan({ $0.choose(id, on: now, calendar: calendar) }) {
+      feedback = ReminderFeedback(kind: .chosen, reminder: reminder)
+    }
   }
 
   public func pin(_ id: String) {
@@ -271,6 +287,7 @@ import Observation
       }
       undo = (original, saved)
       if saved.isCompleted && projection.pinnedReminderID == id { updatePlan { $0.unpin() } }
+      publishCompletion(saved)
       await refresh()
       notice = saved.isCompleted ? "Reminder completed" : "Reminder reopened"
     } catch { self.error = error.localizedDescription }
@@ -281,11 +298,28 @@ import Observation
     busy = true
     defer { busy = false }
     do {
-      _ = try await store.save(undo.before, replacing: undo.after)
+      let saved = try await store.save(undo.before, replacing: undo.after)
+      guard saved.isCompleted == undo.before.isCompleted else {
+        error = "Apple Reminders did not confirm Undo. Review the refreshed reminder."
+        await refresh()
+        return
+      }
       self.undo = nil
       notice = nil
+      publishCompletion(saved)
       await refresh()
     } catch { self.error = error.localizedDescription }
+  }
+
+  private func publishCompletion(_ saved: ReminderItem) {
+    // Confirmed writes are authoritative even if the next fetch fails. Refreshes
+    // themselves never emit animation events, including external Reminders edits.
+    refreshID = UUID()
+    reminders.removeAll { $0.id == saved.id }
+    reminders.append(saved)
+    reconcileSelection()
+    feedback = ReminderFeedback(
+      kind: saved.isCompleted ? .completed : .reopened, reminder: saved)
   }
 
   public func saveCapture() async {
@@ -416,4 +450,13 @@ public struct ReminderListSection: Identifiable {
   public var id: String { list.id }
 }
 
-public enum PanelRoute: String { case day, browse, capture, commands, help, settings, edit }
+public enum PanelRoute: String {
+  case day, browse, capture, commands, help, settings, edit, patchbay
+}
+
+public struct ReminderFeedback: Equatable, Identifiable {
+  public enum Kind { case chosen, completed, reopened }
+  public let id = UUID()
+  public let kind: Kind
+  public let reminder: ReminderItem
+}

@@ -113,6 +113,33 @@ import SwiftUI
       "s expands date sections and all lists")
     await key("s", code: 1)
     check(!model.sectionsExpanded, "s collapses all sections again")
+    await key("b", code: 11)
+    check(model.route == .patchbay, "b opens task patchbay")
+    await click(x: 246, fromTop: 344)
+    check(
+      model.projection.today.contains { $0.id == "parking" },
+      "patchbay plus chooses a reminder")
+    check(
+      model.patchbayLists.flatMap(\.items).contains { $0.id == "parking" },
+      "chosen reminder remains in its source list")
+    model.selectedID = "parking"
+    panel.makeFirstResponder(hosting)
+    await key("r", code: 15)
+    check(model.route == .patchbay, "release stays in patchbay")
+    await key("a", code: 0)
+    check(model.projection.today.contains { $0.id == "parking" }, "a chooses in patchbay")
+    await key("x", code: 7)
+    check(
+      model.route == .patchbay && model.reminders.first { $0.id == "parking" }?.isCompleted == true,
+      "x completes without leaving patchbay")
+    await key("z", code: 6, modifiers: .command)
+    check(
+      model.route == .patchbay
+        && model.reminders.first { $0.id == "parking" }?.isCompleted == false,
+      "Undo reopens without leaving patchbay")
+    model.selectedID = "parking"
+    await key("r", code: 15)
+    await key("h", code: 4)
     model.selectedID = "dentist"
     await key("j", code: 38)
     check(model.selectedID == "expenses", "j moves to next reminder once")
@@ -199,6 +226,10 @@ import SwiftUI
     check(panel.makeFirstResponder(slider), "CRT slider retains keyboard availability at zero")
     await key("\u{f703}", code: 124)
     check(preferences.crtIntensity > 0, "Right arrow re-enables CRT effects")
+    await click(x: 37, fromTop: 397)
+    check(!preferences.terminalMotion, "pointer disables terminal motion independently of CRT")
+    await click(x: 37, fromTop: 397)
+    check(preferences.terminalMotion, "pointer restores terminal motion")
     await click(x: 160, fromTop: 143)
     check(preferences.theme == .graphite, "pointer switches back to Graphite")
     preferences.theme = originalTheme
@@ -207,9 +238,11 @@ import SwiftUI
     check(model.route == .day, "h returns from settings")
     await key("\u{1b}", code: 53)
     check(!panel.isVisible, "Escape dismisses the panel")
+    check(!hosting.rootView.isPresented, "closing explicitly suspends decorative motion")
     button.performClick(nil)
     try? await Task.sleep(for: .milliseconds(300))
     check(panel.isVisible && panel.isKeyWindow, "status button reopens and focuses panel")
+    check(hosting.rootView.isPresented, "reopening restores the motion lifecycle")
     button.performClick(nil)
     check(!panel.isVisible, "status button toggles panel closed")
     button.performClick(nil)
@@ -267,6 +300,7 @@ import SwiftUI
       model.error =
         "Could not save your day plan. Your reminders are unchanged. Check that your Mac has available storage, then try again."
     }
+    if arguments.contains("--no-motion") { preferences.terminalMotion = false }
     let view = KeyboardHostingView(rootView: PanelView(model: model, preferences: preferences))
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: PanelView.preferredSize), styleMask: [.borderless],
@@ -276,22 +310,46 @@ import SwiftUI
     window.orderFront(nil)
     defer { window.orderOut(nil) }
     try? await Task.sleep(for: .milliseconds(600))
-    view.layoutSubtreeIfNeeded()
     do {
-      guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-        throw CocoaError(.fileWriteUnknown)
-      }
-      view.cacheDisplay(in: view.bounds, to: bitmap)
-      guard let png = bitmap.representation(using: .png, properties: [:]) else {
-        throw CocoaError(.fileWriteUnknown)
+      if let directory = option("--motion-sequence", in: arguments) {
+        let destination = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let clock = ContinuousClock()
+        let began = clock.now
+        for frame in 0..<200 {
+          switch frame {
+          case 8: model.selectedID = "expenses"
+          case 26: await model.complete("expenses")
+          case 50: await model.undoCompletion()
+          case 74: model.route = .patchbay
+          case 96: model.choose("parking")
+          default: break
+          }
+          try await clock.sleep(until: began + .milliseconds(frame * 50))
+          try writeSnapshot(
+            view, to: destination.appendingPathComponent(String(format: "%03d.png", frame)))
+        }
+        print("Rendered native motion sequence in \(directory)")
       }
       let url = URL(fileURLWithPath: option("--snapshot", in: arguments) ?? "daywell.png")
-      try png.write(to: url)
+      try writeSnapshot(view, to: url)
       print("Rendered \(url.path)")
     } catch {
       fputs("Snapshot failed: \(error)\n", stderr)
       exit(1)
     }
     NSApp.terminate(nil)
+  }
+
+  private static func writeSnapshot(_ view: NSView, to url: URL) throws {
+    view.layoutSubtreeIfNeeded()
+    guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+      throw CocoaError(.fileWriteUnknown)
+    }
+    view.cacheDisplay(in: view.bounds, to: bitmap)
+    guard let png = bitmap.representation(using: .png, properties: [:]) else {
+      throw CocoaError(.fileWriteUnknown)
+    }
+    try png.write(to: url)
   }
 }
