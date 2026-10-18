@@ -20,10 +20,14 @@ no live EventKit access, installation or re-signing of the approved app.
 - **Not verified here:** real key focus after a physical ⌃⌥Space press (this
   harness gets no window key focus from macOS at all, even after `NSApp.activate`);
   on-screen pixels (Screen Recording isn't granted); the Services menu entry in a
-  registered app; audible sounds; VoiceOver; and live EventKit. `--live-check` was
-  denied Reminders access when run from the agent's process; run
-  `bash scripts/live-check.sh` from a terminal to let macOS ask on Daywell's behalf.
-  It also reports whether a reminder keeps its identifier when moved between lists.
+  registered app; audible sounds; and VoiceOver.
+- After Ron granted Screen Recording, a `screencapture` video of the display during
+  the UI check confirmed the capture bar and panel render on screen as in the frames.
+- After Ron allowed Reminders access, `bash scripts/live-check.sh` passed every live
+  check on disposable lists it created and removed, including the October additions:
+  `createList`, a cross-list move (the identifier **survives** the move), and the My
+  Day choice following it. Read-only fetch timing on Ron's store: all reminders, 41
+  items, 6.8–16 ms; the two narrow queries, 15 items, 5.1–7.4 ms.
 
 
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
