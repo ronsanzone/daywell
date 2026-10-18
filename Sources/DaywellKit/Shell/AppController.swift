@@ -22,6 +22,7 @@ import SwiftUI
   private var keyMonitor: Any?
   private var clickMonitor: Any?
   private var observers: [NSObjectProtocol] = []
+  private var workspaceObservers: [NSObjectProtocol] = []
   private var midnightTimer: Timer?
   private var safetyTimer: Timer?
   private var flyTask: Task<Void, Never>?
@@ -78,6 +79,7 @@ import SwiftUI
   public func showCapture() {
     let began = ContinuousClock.now
     flyTask?.cancel()
+    model.setNow(Date())
     capture.listIndex = nil
     Task { await model.refresh() }
     positionCapture()
@@ -151,6 +153,7 @@ import SwiftUI
   public func showPanel(selecting reminderID: String? = nil) {
     let began = ContinuousClock.now
     hideCapture()
+    model.setNow(Date())
     Task { await model.refresh() }
     if panelState.route != .today { panelState.route = .today }
     if model.today.wantsMorningPull && model.authorized { panelState.beginMorning() }
@@ -288,7 +291,7 @@ import SwiftUI
           MainActor.assumeIsolated { self?.tick() }
         })
     }
-    observers.append(
+    workspaceObservers.append(
       NSWorkspace.shared.notificationCenter.addObserver(
         forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
       ) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } })
@@ -324,6 +327,7 @@ import SwiftUI
     if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
     if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
     observers.forEach(NotificationCenter.default.removeObserver)
+    workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     midnightTimer?.invalidate()
     safetyTimer?.invalidate()
   }

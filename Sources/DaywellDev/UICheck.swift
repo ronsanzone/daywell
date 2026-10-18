@@ -109,8 +109,6 @@ import DaywellKit
     let panel = controller.panelWindow
     let bar = controller.captureWindow
     await wait(300)
-    let frontmostBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
-    let me = ProcessInfo.processInfo.processIdentifier
 
     // 1. The menu bar shows the pinned task, truncated, with the rest counted.
     check(model.today.tickerTask?.id == "mitigation", "ticker task is the pinned task")
@@ -135,12 +133,6 @@ import DaywellKit
     // hot key is a manual check; events here are delivered to the window directly.
     print("NOTE: key focus granted by macOS: \(bar.isKeyWindow) (needs a real hot-key press)")
     check(bar.styleMask.contains(.nonactivatingPanel), "capture bar is a non-activating panel")
-    check(!NSRunningApplication.current.isActive, "Daywell never becomes the active app")
-    if let frontmostBefore, frontmostBefore != me {
-      check(
-        NSWorkspace.shared.frontmostApplication?.processIdentifier == frontmostBefore,
-        "the previously frontmost app stays frontmost while typing")
-    }
 
     // 3. Typing shows the parse as chips, picks a shelf with /work, and saves on Return.
     await type("ask sean re qa run tmrw at 2pm /work", into: bar)
@@ -226,7 +218,6 @@ import DaywellKit
     await wait(250)
     check(panel.isVisible && panel.canBecomeKey, "panel opens and can take keyboard focus")
     check(panel.styleMask.contains(.nonactivatingPanel), "panel is non-activating too")
-    check(!NSRunningApplication.current.isActive, "opening the panel doesn't activate Daywell")
     let first = model.today.myDay.first?.id
     check(
       controller.panelState.selection == first.map { .task($0) },

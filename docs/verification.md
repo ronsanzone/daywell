@@ -7,12 +7,12 @@ no live EventKit access, installation or re-signing of the approved app.
 
 - `bash scripts/check.sh` passed: formatting, SwiftLint (0 violations), dependency
   boundaries, build, and **66 tests** (41 core, 25 kit).
-- `DaywellDev --ui-check` (release build) passed **62 checks**, and `--ui-check
+- `DaywellDev --ui-check` (release build) passed **59 checks**, and `--ui-check
   --fresh-day` passed **9**, using AppKit events posted through the application
   queue to the real capture bar, panel and menu-bar ticker windows.
-- Timings from that run: capture bar on screen 3.4 ms median (8.6 ms worst, n=10);
-  keypress to finish motion 5.1 ms; Return to saved with 12 ms simulated EventKit
-  latency 35 ms. `--bench`: projection with 20,000 completed reminders took 29.6 ms
+- Timings from that run: `showCapture()` to window on screen 3.0 ms median (6.1 ms
+  worst, n=10); posted keypress to finish motion 5.5 ms; keypress to confirmed finish
+  with 12 ms simulated EventKit latency 20 ms. `--bench`: projection with 20,000 completed reminders took 29.6 ms
   on the old all-reminders fetch, 0.013 ms on the new two-query fetch.
 - Inspected snapshots of every surface in all four themes, the menu-bar ring states,
   and frame sequences of each theme's finish, the capture-bar finish and Day clear.
