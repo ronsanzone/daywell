@@ -43,6 +43,25 @@ import SwiftUI
       }
     }
     _ = model
+    // Menu-bar ring states, drawn as macOS tints template images on a light menu bar.
+    for (name, style) in [
+      ("open", RingImage.Style.open), ("dashed", .dashed), ("half", .filled(0.5)),
+      ("done", .filled(1)),
+    ] {
+      let image = RingImage.make(style)
+      let size = NSSize(width: 64, height: 64)
+      let canvas = NSImage(size: size, flipped: false) { rect in
+        NSColor.white.setFill()
+        rect.fill()
+        image.draw(in: rect.insetBy(dx: 8, dy: 8))
+        return true
+      }
+      if let tiff = canvas.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
+        let png = bitmap.representation(using: .png, properties: [:])
+      {
+        try? png.write(to: directory.appendingPathComponent("ring-\(name).png"))
+      }
+    }
     print("Snapshots written to \(directory.path)")
   }
 

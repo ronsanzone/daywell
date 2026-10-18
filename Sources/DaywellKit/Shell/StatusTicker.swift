@@ -238,13 +238,13 @@ import Observation
 }
 
 /// Template ring images for the menu bar; macOS tints them for light and dark bars.
-enum RingImage {
-  enum Style: Equatable {
+public enum RingImage {
+  public enum Style: Equatable, Sendable {
     case open, dashed
     case filled(CGFloat)
   }
 
-  static func make(_ style: Style) -> NSImage {
+  public static func make(_ style: Style) -> NSImage {
     let size = NSSize(width: 16, height: 16)
     let image = NSImage(size: size, flipped: false) { rect in
       let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 2.5, dy: 2.5))
