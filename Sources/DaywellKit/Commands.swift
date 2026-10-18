@@ -93,8 +93,10 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .finish, .edit, .move: return id.map(model.canWrite) ?? false
     case .pin: return id.flatMap(model.reminder).map { !$0.isCompleted } ?? false
-    case .pull: return id.map { !model.isChosen($0) && model.reminder($0)?.isCompleted == false } ?? false
-    case .release: return id.map { id in model.plan.commitments.contains { $0.reminderID == id } } ?? false
+    case .pull:
+      return id.map { !model.isChosen($0) && model.reminder($0)?.isCompleted == false } ?? false
+    case .release:
+      return id.map { id in model.plan.commitments.contains { $0.reminderID == id } } ?? false
     case .reorderUp, .reorderDown: return id.map(model.isChosen) ?? false
     case .undo: return model.undo != nil
     case .capture: return model.authorized && !model.writableLists.isEmpty

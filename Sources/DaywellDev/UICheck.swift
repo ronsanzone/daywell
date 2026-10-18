@@ -19,7 +19,9 @@ import DaywellKit
     self.controller = controller
     self.store = store
     self.frames = frames
-    if let frames { try? FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true) }
+    if let frames {
+      try? FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true)
+    }
   }
 
   func check(_ condition: Bool, _ label: String) {
@@ -64,7 +66,9 @@ import DaywellKit
     "s": 1, "z": 6, "1": 18, "2": 19, "3": 20,
   ]
 
-  func press(_ name: String, modifiers: NSEvent.ModifierFlags = [], to window: NSWindow, settle: Int = 80)
+  func press(
+    _ name: String, modifiers: NSEvent.ModifierFlags = [], to window: NSWindow, settle: Int = 80
+  )
     async
   {
     let characters: String
@@ -73,13 +77,15 @@ import DaywellKit
     case "escape": characters = "\u{1b}"
     case "tab": characters = "\t"
     case "space": characters = " "
-    case "down": characters = String(UnicodeScalar(NSDownArrowFunctionKey)!)
-    case "up": characters = String(UnicodeScalar(NSUpArrowFunctionKey)!)
-    case "left": characters = String(UnicodeScalar(NSLeftArrowFunctionKey)!)
-    case "right": characters = String(UnicodeScalar(NSRightArrowFunctionKey)!)
+    // AppKit's arrow keys are fixed private-use scalars, U+F700 to U+F703.
+    case "up": characters = "\u{F700}"
+    case "down": characters = "\u{F701}"
+    case "left": characters = "\u{F702}"
+    case "right": characters = "\u{F703}"
     default: characters = name
     }
-    await key(characters, code: Self.codes[name] ?? 0, modifiers: modifiers, to: window, settle: settle)
+    await key(
+      characters, code: Self.codes[name] ?? 0, modifiers: modifiers, to: window, settle: settle)
   }
 
   func time(_ label: String, _ duration: Duration) { timings[label, default: []].append(duration) }
@@ -139,7 +145,9 @@ import DaywellKit
     // 3. Typing shows the parse as chips, picks a shelf with /work, and saves on Return.
     await type("ask sean re qa run tmrw at 2pm /work", into: bar)
     let result = controller.capture.result
-    check(controller.capture.text == "ask sean re qa run tmrw at 2pm /work", "typed text reaches the field")
+    check(
+      controller.capture.text == "ask sean re qa run tmrw at 2pm /work",
+      "typed text reaches the field")
     check(result.title == "ask sean re qa run", "title is what's left after date and shelf")
     check(result.hasTime && result.dueDate != nil, "\"tmrw at 2pm\" becomes a timed due date")
     check(controller.capture.targetListID == "work", "\"/work\" targets the Work shelf")
@@ -151,8 +159,11 @@ import DaywellKit
     }
     time("capture Return → saved in Reminders", ContinuousClock.now - saveStart)
     let saved = store.items.first { $0.title == "ask sean re qa run" }
-    check(saved?.listID == "work" && saved?.hasDueTime == true, "capture saved to Work with its time")
-    check(controller.ticker.text == "→ Work", "ticker flashes where it landed (\(controller.ticker.text))")
+    check(
+      saved?.listID == "work" && saved?.hasDueTime == true, "capture saved to Work with its time")
+    check(
+      controller.ticker.text == "→ Work",
+      "ticker flashes where it landed (\(controller.ticker.text))")
     await wait(450)
     check(!bar.isVisible, "capture bar flies away after the save")
 
@@ -166,7 +177,9 @@ import DaywellKit
     await press("p", to: bar)
     check(model.today.pinnedID == "slo", "p pins the selected task")
     await wait(1300)  // Let the "→ Work" flash finish.
-    check(controller.ticker.text.hasPrefix("Look into SLO dashboard"), "pinning changes the menu bar task")
+    check(
+      controller.ticker.text.hasPrefix("Look into SLO dashboard"),
+      "pinning changes the menu bar task")
     controller.capture.listIndex = 0
     let pileBefore = model.today.pile.count
     var finishingAt: ContinuousClock.Instant?
@@ -181,7 +194,9 @@ import DaywellKit
     await wait(700)
     _ = await frameTask.value
     if let finishingAt { time("keypress → finish motion starts", finishingAt - pressed) }
-    if let finishedAt { time("keypress → Reminders confirmed (12 ms simulated latency)", finishedAt - pressed) }
+    if let finishedAt {
+      time("keypress → Reminders confirmed (12 ms simulated latency)", finishedAt - pressed)
+    }
     check(finishingAt != nil, "finish motion starts on the keypress")
     check(model.today.pile.count == pileBefore + 1, "the finished task lands on today's pile")
     check(model.reminder("slo")?.isCompleted == true, "the reminder is completed in Reminders")
@@ -194,11 +209,17 @@ import DaywellKit
     let tickerTask = model.today.tickerTask?.id
     controller.ticker.clickRing()
     await wait(600)
-    check(tickerTask.flatMap { model.reminder($0)?.isCompleted } == true, "clicking the ring finishes the ticker task")
-    check(controller.ticker.text.contains("· undo"), "undo waits in the menu bar (\(controller.ticker.text))")
+    check(
+      tickerTask.flatMap { model.reminder($0)?.isCompleted } == true,
+      "clicking the ring finishes the ticker task")
+    check(
+      controller.ticker.text.contains("· undo"),
+      "undo waits in the menu bar (\(controller.ticker.text))")
     controller.ticker.clickUndo()
     await wait(300)
-    check(tickerTask.flatMap { model.reminder($0)?.isCompleted } == false, "undo in the menu bar reopens it")
+    check(
+      tickerTask.flatMap { model.reminder($0)?.isCompleted } == false,
+      "undo in the menu bar reopens it")
 
     // 6. The panel: keyboard only.
     controller.showPanel()
@@ -207,11 +228,15 @@ import DaywellKit
     check(panel.styleMask.contains(.nonactivatingPanel), "panel is non-activating too")
     check(!NSRunningApplication.current.isActive, "opening the panel doesn't activate Daywell")
     let first = model.today.myDay.first?.id
-    check(controller.panelState.selection == first.map { .task($0) }, "selection starts on the first task")
+    check(
+      controller.panelState.selection == first.map { .task($0) },
+      "selection starts on the first task")
     await press("j", to: panel)
     let second = model.today.myDay.dropFirst().first?.id
     await press("down", modifiers: .option, to: panel)
-    check(model.today.myDay.first?.id == first && model.today.myDay.last?.id == second, "⌥↓ reorders My Day")
+    check(
+      model.today.myDay.first?.id == first && model.today.myDay.last?.id == second,
+      "⌥↓ reorders My Day")
     await press("z", modifiers: .command, to: panel, settle: 150)
     check(model.today.myDay.dropFirst().first?.id == second, "⌘Z undoes the reorder")
     controller.panelState.selection = second.map { .task($0) }
@@ -251,7 +276,9 @@ import DaywellKit
     let failing = controller.panelState.selectedReminderID
     store.failNextSave = .changed
     await press("x", to: panel, settle: 500)
-    check(failing.flatMap(model.reminder)?.isCompleted == false, "a rejected finish leaves the task open")
+    check(
+      failing.flatMap(model.reminder)?.isCompleted == false,
+      "a rejected finish leaves the task open")
     check(failing.map { !controller.motion.isFinishing($0) } == true, "the finish motion reverses")
     check(model.error != nil, "the error explains what happened")
     model.error = nil
@@ -267,7 +294,9 @@ import DaywellKit
     _ = await clearRecord.value
     check(model.today.isDayClear, "everything chosen is finished")
     check(dayClears == 1, "Day clear plays once")
-    check(controller.ticker.text.hasPrefix("Day clear · "), "the menu bar says Day clear (\(controller.ticker.text))")
+    check(
+      controller.ticker.text.hasPrefix("Day clear · "),
+      "the menu bar says Day clear (\(controller.ticker.text))")
     await press("escape", to: panel)
     check(!panel.isVisible, "esc closes the panel")
 
@@ -276,12 +305,22 @@ import DaywellKit
       controller.preferences.theme = theme
       controller.showPanel()
       await wait(150)
+      if model.today.myDay.isEmpty, let open = model.today.shelves.flatMap(\.items).first {
+        model.choose(open.id)
+        await wait(100)
+      }
       if let id = model.today.myDay.first?.id {
         controller.panelState.selection = .task(id)
-        let recorder = Task { await self.record("finish-\(theme.rawValue)", window: panel, frames: 30) }
+        let recorder = Task {
+          await self.record("finish-\(theme.rawValue)", window: panel, frames: 30)
+        }
         await press("x", to: panel, settle: 0)
         _ = await recorder.value
+        await wait(700)
         check(model.reminder(id)?.isCompleted == true, "\(theme.rawValue): finish works")
+        check(controller.motion.lingering.isEmpty, "\(theme.rawValue): the finished row leaves")
+      } else {
+        check(false, "\(theme.rawValue): has a task to finish")
         await press("z", modifiers: .command, to: panel, settle: 200)
       }
       controller.hidePanel()
@@ -298,7 +337,9 @@ import DaywellKit
     let panel = controller.panelWindow
     await wait(300)
     check(model.today.wantsMorningPull, "a fresh day with leftovers wants the morning pull")
-    check(controller.ticker.text == "Choose today", "the menu bar invites a pick (\(controller.ticker.text))")
+    check(
+      controller.ticker.text == "Choose today",
+      "the menu bar invites a pick (\(controller.ticker.text))")
     controller.showPanel()
     await wait(250)
     check(controller.panelState.route == .morning, "opening the panel starts with the morning pull")
@@ -311,7 +352,9 @@ import DaywellKit
     await record("morning-picked", window: panel, frames: 3)
     await press("return", to: panel, settle: 250)
     check(model.today.myDay.count == 2, "Start the day makes the picks today's tasks")
-    check(!model.isChosen("prototype") && model.plan.commitments.allSatisfy { $0.reminderID != "prototype" },
+    check(
+      !model.isChosen("prototype")
+        && model.plan.commitments.allSatisfy { $0.reminderID != "prototype" },
       "the unpicked leftover goes back to its shelf")
     check(!model.today.wantsMorningPull, "the pull doesn't ask again today")
     check(controller.ticker.text != "Choose today", "the menu bar now shows today's first task")
@@ -326,7 +369,9 @@ import DaywellKit
       let sorted = samples.sorted()
       let median = sorted[sorted.count / 2]
       let worst = sorted.last ?? median
-      print("TIMING \(label): median \(Bench.format(median)), worst \(Bench.format(worst)), n=\(samples.count)")
+      print(
+        "TIMING \(label): median \(Bench.format(median)), worst \(Bench.format(worst)), n=\(samples.count)"
+      )
     }
   }
 }

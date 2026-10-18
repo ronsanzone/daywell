@@ -108,8 +108,6 @@ struct TodayView: View {
       Spacer()
       Text(headerCount).font(.system(size: 12, design: .monospaced))
         .foregroundStyle(model.today.isDayClear ? theme.accent : theme.secondary)
-        .contentTransition(.numericText())
-        .animation(.snappy, value: model.today.myDay.count)
     }
     .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 10)
   }
@@ -143,7 +141,8 @@ struct TodayView: View {
         pinned: model.today.pinnedID == item.id
       )
       .id(PanelRow.task(item.id))
-      .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+      .transition(
+        .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
     }
   }
 
@@ -318,6 +317,7 @@ struct TaskRow: View {
     }
     .padding(.leading, indent ? 18 : 4).padding(.trailing, 10).padding(.vertical, 5)
     .background(background)
+    .opacity(motion.isLeaving(item.id) ? 0 : 1)
     .contentShape(Rectangle())
     .onTapGesture { panel.selection = row }
     .accessibilityElement(children: .contain)
@@ -461,7 +461,8 @@ struct StatusLine: View {
       .padding(.horizontal, 18).padding(.vertical, 8)
     } else if let notice = model.notice {
       Text(notice).font(theme.font(12)).foregroundStyle(theme.secondary)
-        .padding(.horizontal, 18).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18).padding(.vertical, 8).frame(
+          maxWidth: .infinity, alignment: .leading)
     }
   }
 }

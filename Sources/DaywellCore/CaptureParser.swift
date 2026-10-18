@@ -59,7 +59,8 @@ public enum CaptureParser {
     let fallback = CaptureResult(
       title: literal, dueDate: nil, hasTime: false, shelfQuery: shelfQuery)
     guard
-      let match = suffix.firstMatch(in: literal, range: NSRange(literal.startIndex..., in: literal)),
+      let match = suffix.firstMatch(
+        in: literal, range: NSRange(literal.startIndex..., in: literal)),
       let titleRange = Range(match.range(at: 1), in: literal),
       let dayRange = Range(match.range(at: 2), in: literal),
       let phraseStart = Range(match.range(at: 2), in: literal)?.lowerBound

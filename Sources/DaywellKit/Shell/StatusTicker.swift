@@ -161,7 +161,8 @@ import Observation
   private func showMenu() {
     let menu = NSMenu()
     for task in model.today.myDay {
-      let entry = NSMenuItem(title: task.title, action: #selector(pinFromMenu(_:)), keyEquivalent: "")
+      let entry = NSMenuItem(
+        title: task.title, action: #selector(pinFromMenu(_:)), keyEquivalent: "")
       entry.target = self
       entry.representedObject = task.id
       entry.state = model.today.pinnedID == task.id ? .on : .off

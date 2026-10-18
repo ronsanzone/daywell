@@ -149,7 +149,8 @@ public enum Fixtures {
       item("workstation", "Remote workstation", "devex"),
       item("plannotator", "Plannotator herdr native setup", "devex"),
       item("parking", "Renew parking permit", "inbox", due: friday),
-      item("secprs", "Close out in-progress security PRs", "work", done: now.addingTimeInterval(-7200)),
+      item(
+        "secprs", "Close out in-progress security PRs", "work", done: now.addingTimeInterval(-7200)),
       item("qa", "Finish prep for QA run", "work", done: now.addingTimeInterval(-3600)),
     ]
     for index in 0..<history {

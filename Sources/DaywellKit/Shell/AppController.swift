@@ -92,12 +92,14 @@ import SwiftUI
   }
 
   private func positionCapture() {
-    let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+    let screen =
+      NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
     guard let visible = screen?.visibleFrame else { return }
     captureWindow.layoutIfNeeded()
     let size = captureWindow.frame.size
     captureWindow.setFrameOrigin(
-      NSPoint(x: visible.midX - size.width / 2, y: visible.maxY - visible.height * 0.22 - size.height))
+      NSPoint(
+        x: visible.midX - size.width / 2, y: visible.maxY - visible.height * 0.22 - size.height))
   }
 
   /// After a confirmed save, the bar shrinks into the menu bar and disappears.
@@ -243,7 +245,8 @@ import SwiftUI
         .capture, key: UInt32(preferences.shortcutKey),
         modifiers: UInt32(preferences.shortcutModifiers))
       if status != noErr {
-        model.error = "That shortcut couldn't be registered (\(status)). Choose another in Settings."
+        model.error =
+          "That shortcut couldn't be registered (\(status)). Choose another in Settings."
       }
       // ⌃⌥X: key code 7, Control + Option.
       hotKeys.register(.finish, key: preferences.finishHotKeyEnabled ? 7 : nil, modifiers: 6144)
@@ -272,9 +275,10 @@ import SwiftUI
       center.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) {
         [weak self] _ in Task { @MainActor in await self?.model.refresh() }
       })
-    for name in [Notification.Name.NSCalendarDayChanged, .NSSystemClockDidChange,
-      .NSSystemTimeZoneDidChange]
-    {
+    for name in [
+      Notification.Name.NSCalendarDayChanged, .NSSystemClockDidChange,
+      .NSSystemTimeZoneDidChange,
+    ] {
       observers.append(
         center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
           MainActor.assumeIsolated { self?.tick() }

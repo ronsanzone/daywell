@@ -13,6 +13,8 @@ import Testing
     return value
   }()
 
+  let lists = [ReminderList(id: "list", title: "Inbox"), ReminderList(id: "other", title: "Other")]
+
   func date(_ value: String) -> Date {
     // All call sites pass fixed ISO-8601 fixture literals.
     // swiftlint:disable:next force_unwrapping
@@ -89,13 +91,14 @@ import Testing
       reminder("externalDone", completed: date("2026-09-18T14:00:00Z")),
       reminder("oldDone", completed: date("2026-09-17T14:00:00Z")),
     ]
-    let result = plan.projection(reminders: items, now: now, calendar: calendar)
-    #expect(result.today.map(\.id) == ["chosenDue"])
+    let result = Today.build(
+      plan: plan, reminders: items, lists: lists, now: now, calendar: calendar)
+    #expect(result.myDay.map(\.id) == ["chosenDue"])
     #expect(result.due.map(\.id) == ["overdue", "futureTimedToday"])
-    #expect(result.previous.map(\.id) == ["old"])
-    #expect(result.done.map(\.id) == ["externalDone"])
+    #expect(result.leftovers.map(\.id) == ["old"])
+    #expect(result.pile.map(\.id) == ["externalDone"])
     #expect(result.unresolved.map(\.reminderID) == ["missing"])
-    #expect(result.pinnedReminderID == "chosenDue")
+    #expect(result.pinnedID == "chosenDue")
   }
 
   @Test func pinSortsFirstAndOrdersRemainingCommitments() {
@@ -104,9 +107,10 @@ import Testing
     plan.choose("a", on: now, calendar: calendar)
     plan.choose("b", on: now, calendar: calendar)
     plan.pin("b", on: now, calendar: calendar)
-    let result = plan.projection(
-      reminders: [reminder("a"), reminder("b")], now: now, calendar: calendar)
-    #expect(result.today.map(\.id) == ["b", "a"])
+    let result = Today.build(
+      plan: plan, reminders: [reminder("a"), reminder("b")], lists: lists, now: now,
+      calendar: calendar)
+    #expect(result.myDay.map(\.id) == ["b", "a"])
   }
 
   @Test func keepPreviousMovesOnlySelectedAndPreservesFutureMembership() {
@@ -130,12 +134,113 @@ import Testing
     let now = date("2026-09-18T16:00:00Z")
     var plan = DayPlan()
     plan.pin("a", on: now, calendar: calendar)
-    let completed = plan.projection(
-      reminders: [reminder("a", completed: now)], now: now, calendar: calendar)
-    #expect(completed.pinnedReminderID == nil)
-    #expect(completed.today.isEmpty)
-    let missing = plan.projection(reminders: [], now: now, calendar: calendar)
-    #expect(missing.pinnedReminderID == nil)
+    let completed = Today.build(
+      plan: plan, reminders: [reminder("a", completed: now)], lists: lists, now: now,
+      calendar: calendar)
+    #expect(completed.pinnedID == nil)
+    #expect(completed.myDay.isEmpty)
+    let missing = Today.build(plan: plan, reminders: [], lists: lists, now: now, calendar: calendar)
+    #expect(missing.pinnedID == nil)
     #expect(missing.unresolved.count == 1)
+  }
+
+  @Test func todayCountsFinishedCommitmentsAndDayClear() {
+    let now = date("2026-09-18T16:00:00Z")
+    var plan = DayPlan()
+    plan.choose("a", on: now, calendar: calendar)
+    plan.choose("b", on: now, calendar: calendar)
+    let half = Today.build(
+      plan: plan, reminders: [reminder("a", completed: now), reminder("b")], lists: lists,
+      now: now, calendar: calendar)
+    #expect(half.finishedCommitments == 1 && !half.isDayClear)
+    #expect(half.tickerTask?.id == "b")
+    let all = Today.build(
+      plan: plan, reminders: [reminder("a", completed: now), reminder("b", completed: now)],
+      lists: lists, now: now, calendar: calendar)
+    #expect(all.isDayClear && all.tickerTask == nil)
+    let none = Today.build(
+      plan: DayPlan(), reminders: [], lists: lists, now: now, calendar: calendar)
+    #expect(!none.isDayClear)
+  }
+
+  @Test func pileIsOrderedByCompletionTime() {
+    let now = date("2026-09-18T16:00:00Z")
+    let items = [
+      reminder("late", completed: date("2026-09-18T15:00:00Z")),
+      reminder("early", completed: date("2026-09-18T13:00:00Z")),
+    ]
+    let result = Today.build(
+      plan: DayPlan(), reminders: items, lists: lists, now: now, calendar: calendar)
+    #expect(result.pile.map(\.id) == ["early", "late"])
+  }
+
+  @Test func shelvesHoldOpenWorkNotAlreadyChosen() {
+    let now = date("2026-09-18T16:00:00Z")
+    var plan = DayPlan()
+    plan.choose("chosen", on: now, calendar: calendar)
+    var other = reminder("elsewhere")
+    other.listID = "other"
+    let items = [
+      reminder("chosen"), reminder("zeta"), reminder("alpha"),
+      reminder("dated", due: date("2026-09-20T16:00:00Z")), reminder("done", completed: now), other,
+    ]
+    let result = Today.build(
+      plan: plan, reminders: items, lists: lists, now: now, calendar: calendar)
+    #expect(result.shelves.map(\.id) == ["list", "other"])
+    #expect(result.shelves[0].items.map(\.id) == ["dated", "alpha", "zeta"])
+    #expect(result.shelves[1].items.map(\.id) == ["elsewhere"])
+  }
+
+  @Test func morningPullWantsAnEmptyDayOrLeftoversOncePerDay() {
+    let now = date("2026-09-18T16:00:00Z")
+    let yesterday = date("2026-09-17T16:00:00Z")
+    var plan = DayPlan()
+    plan.choose("old", on: yesterday, calendar: calendar)
+    let items = [reminder("old"), reminder("other")]
+    #expect(
+      Today.build(plan: plan, reminders: items, lists: lists, now: now, calendar: calendar)
+        .wantsMorningPull)
+    plan.markMorningPull(on: now, calendar: calendar)
+    #expect(
+      !Today.build(plan: plan, reminders: items, lists: lists, now: now, calendar: calendar)
+        .wantsMorningPull)
+    var chosen = DayPlan()
+    chosen.choose("other", on: now, calendar: calendar)
+    #expect(
+      !Today.build(plan: chosen, reminders: items, lists: lists, now: now, calendar: calendar)
+        .wantsMorningPull)
+  }
+
+  @Test func reorderMovesWithinTodayAndClamps() {
+    let now = date("2026-09-18T16:00:00Z")
+    var plan = DayPlan()
+    for id in ["a", "b", "c"] { plan.choose(id, on: now, calendar: calendar) }
+    plan.reorder("c", by: -1, among: ["a", "b", "c"], on: now)
+    let order = { (plan: DayPlan) in
+      Today.build(
+        plan: plan, reminders: [self.reminder("a"), self.reminder("b"), self.reminder("c")],
+        lists: self.lists, now: now, calendar: self.calendar
+      ).myDay.map(\.id)
+    }
+    #expect(order(plan) == ["a", "c", "b"])
+    plan.reorder("a", by: -5, among: order(plan), on: now)
+    #expect(order(plan) == ["a", "c", "b"])
+  }
+
+  @Test func relinkMovesACommitmentToItsNewIdentifier() {
+    let now = date("2026-09-18T16:00:00Z")
+    var plan = DayPlan()
+    plan.pin("old-id", on: now, calendar: calendar)
+    plan.relink(from: "old-id", to: "new-id")
+    let result = Today.build(
+      plan: plan, reminders: [reminder("new-id")], lists: lists, now: now, calendar: calendar)
+    #expect(result.pinnedID == "new-id")
+    #expect(result.unresolved.isEmpty)
+  }
+
+  @Test func versionOnePlansWithoutTheMorningFieldStillDecode() throws {
+    let json = #"{"schemaVersion":1,"commitments":[],"pinnedCommitmentID":null}"#
+    let plan = try JSONDecoder().decode(DayPlan.self, from: Data(json.utf8))
+    #expect(plan.morningPullDay == nil)
   }
 }

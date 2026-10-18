@@ -36,7 +36,8 @@ import DaywellKit
         } else if arguments.contains("--ui-check") {
           let frames = option("--frames").map { URL(fileURLWithPath: $0) }
           let check = UICheck(controller: controller, store: store, frames: frames)
-          let code = arguments.contains("--fresh-day") ? await check.runMorning() : await check.run()
+          let code =
+            arguments.contains("--fresh-day") ? await check.runMorning() : await check.run()
           cleanUp()
           exit(code)
         } else {

@@ -38,7 +38,9 @@ import SwiftUI
       write(controller.captureWindow, to: directory, "\(name)-capture-list")
       controller.capture.listIndex = nil
       controller.hideCapture()
-      if let button = controller.ticker.button { write(view: button, to: directory, "\(name)-ticker") }
+      if let button = controller.ticker.button {
+        write(view: button, to: directory, "\(name)-ticker")
+      }
     }
     _ = model
     print("Snapshots written to \(directory.path)")

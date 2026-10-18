@@ -9,6 +9,7 @@ import SwiftUI
     public let item: ReminderItem
     public let index: Int
     public var confirmed: Bool
+    public var leaving = false
   }
   /// Rows mid-finish, keyed by reminder ID, with the position they occupied.
   public private(set) var lingering: [String: Lingering] = [:]
@@ -27,6 +28,8 @@ import SwiftUI
   }
 
   public func isFinishing(_ id: String) -> Bool { lingering[id] != nil }
+  /// The finished row is fading out in place before the list closes the gap.
+  public func isLeaving(_ id: String) -> Bool { lingering[id]?.leaving == true }
 
   /// My Day as displayed: confirmed state plus rows still finishing.
   public var displayedMyDay: [ReminderItem] {
@@ -59,7 +62,7 @@ import SwiftUI
         try? await Task.sleep(for: .milliseconds(700))
         self?.landed.remove(item.id)
       }
-    case .finishFailed:
+    case .finishFailed, .reopened:
       withAnimation(.easeOut(duration: 0.2)) { _ = lingering.removeValue(forKey: item.id) }
     default: break
     }
@@ -69,7 +72,17 @@ import SwiftUI
     // Unconfirmed rows stay until Apple Reminders answers either way.
     guard let entry = lingering[id] else { return }
     if entry.confirmed {
-      withAnimation(.easeInOut(duration: 0.22)) { _ = lingering.removeValue(forKey: id) }
+      // Fade the struck row out where it is, then let the rows below close the gap,
+      // so a leaving row never overlaps its neighbour.
+      // A timer, not an animation completion: completions don't fire while the
+      // window is hidden, and a hidden panel must never keep a finished row.
+      withAnimation(.easeOut(duration: 0.14)) { lingering[id]?.leaving = true }
+      Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(160))
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+          _ = self?.lingering.removeValue(forKey: id)
+        }
+      }
     } else {
       Task { [weak self] in
         try? await Task.sleep(for: .milliseconds(120))

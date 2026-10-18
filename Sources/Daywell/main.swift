@@ -8,8 +8,10 @@ import DaywellKit
   private var controller: AppController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("Daywell")
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[
+      0
+    ]
+    .appendingPathComponent("Daywell")
     let controller = AppController(
       store: EventKitReminderStore(),
       planStore: PlanStore(url: support.appendingPathComponent("day-plan.json")),

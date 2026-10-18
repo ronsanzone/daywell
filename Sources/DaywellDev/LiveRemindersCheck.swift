@@ -158,7 +158,8 @@ import EventKit
       item = try await snapshot(item.id, in: store)
       try check(item.notes == "External fixture edit", "refresh sees the external edit")
       try await store.delete(item)
-      let afterDelete = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
+      let afterDelete = try await store.fetch(
+        completedSince: Calendar.current.startOfDay(for: Date()))
       try check(
         !afterDelete.reminders.contains { $0.id == item.id },
         "confirmed deletion removes only the disposable reminder")
@@ -212,7 +213,8 @@ import EventKit
         model.error == nil && model.undo == nil
           && !model.plan.commitments.contains { $0.reminderID == beforeRecurring.id },
         "auto-advanced recurrence releases its commitment and offers no unsafe undo")
-      let recurringState = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
+      let recurringState = try await store.fetch(
+        completedSince: Calendar.current.startOfDay(for: Date()))
       let occurrences = recurringState.reminders.filter { $0.listID == list.calendarIdentifier }
       try check(
         occurrences.count == 2
@@ -225,7 +227,9 @@ import EventKit
             && $0.dueDate == calendar.date(byAdding: .day, value: 1, to: tomorrow)
         }, "the next occurrence remains at its advanced deadline")
       await model.undoLast()
-      let afterNoUndo = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date())).reminders.filter {
+      let afterNoUndo = try await store.fetch(
+        completedSince: Calendar.current.startOfDay(for: Date())
+      ).reminders.filter {
         $0.listID == list.calendarIdentifier
       }
       try check(
@@ -343,7 +347,10 @@ import EventKit
   private static func snapshot(_ id: String, in store: EventKitReminderStore) async throws
     -> ReminderItem
   {
-    guard let item = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date())).reminders.first(where: { $0.id == id }) else {
+    guard
+      let item = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
+        .reminders.first(where: { $0.id == id })
+    else {
       throw ReminderError.missing
     }
     return item

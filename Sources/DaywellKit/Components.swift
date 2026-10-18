@@ -77,7 +77,8 @@ struct PileToken: View {
     let color = theme.finish == .ink ? theme.ink(index) : (fresh ? theme.highlight : theme.accent)
     Group {
       switch theme.token {
-      case .roundedSquare: RoundedRectangle(cornerRadius: 4).fill(color).frame(width: 16, height: 16)
+      case .roundedSquare:
+        RoundedRectangle(cornerRadius: 4).fill(color).frame(width: 16, height: 16)
       case .bar:
         Rectangle().fill(color).frame(width: 8, height: 16)
           .shadow(color: color.opacity(0.8), radius: fresh ? 6 : 3)

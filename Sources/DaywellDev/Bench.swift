@@ -42,7 +42,8 @@ import Foundation
   }
 
   static func format(_ duration: Duration) -> String {
-    let ms = Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000
+    let ms =
+      Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000
     return String(format: "%.3f ms", ms)
   }
 }

@@ -67,49 +67,76 @@ public struct ThemeProfile: Sendable {
     return italic ? font.italic() : font
   }
 
-  public static func named(_ id: ThemeID) -> ThemeProfile {
+  /// The raw sRGB tokens of a theme, checked for contrast in tests.
+  public struct Tokens: Sendable {
+    public var background, raised, text, secondary, accent, highlight: UInt32
+    public var inks: [UInt32]
+  }
+
+  public static func tokens(_ id: ThemeID) -> Tokens {
     switch id {
     case .quietNative:
-      ThemeProfile(
-        id: id, title: "Quiet Native", summary: "Refined Graphite. The default.", scheme: .dark,
-        background: Color(hex: 0x242527), raised: Color(hex: 0x2D2F32),
-        text: Color(hex: 0xE8E7E3), secondary: Color(hex: 0xAAACAE),
-        accent: Color(hex: 0xB6A48F), highlight: Color(hex: 0xE3D3BF),
-        separator: Color.white.opacity(0.08), inks: [Color(hex: 0xB6A48F)], monospaced: false,
-        ring: .circle, finish: .spring, token: .roundedSquare, sound: .tock, overlay: .none,
-        dayClearTitle: "Day clear")
+      Tokens(
+        background: 0x242527, raised: 0x2D2F32, text: 0xE8E7E3, secondary: 0xAAACAE,
+        accent: 0xB6A48F, highlight: 0xE3D3BF, inks: [0xB6A48F])
     case .phosphor:
-      ThemeProfile(
-        id: id, title: "Phosphor", summary: "Amber CRT, committed.", scheme: .dark,
-        background: Color(hex: 0x130E08), raised: Color(hex: 0x251A0E),
-        text: Color(hex: 0xFFDBA8), secondary: Color(hex: 0xE0BD8C),
-        accent: Color(hex: 0xFFBB59), highlight: Color(hex: 0xFFF1D0),
-        separator: Color(hex: 0xE0BD8C).opacity(0.16), inks: [Color(hex: 0xFFBB59)],
-        monospaced: true, ring: .square, finish: .flare, token: .bar, sound: .beep,
-        overlay: .crt, dayClearTitle: "DAY CLEAR")
+      Tokens(
+        background: 0x130E08, raised: 0x251A0E, text: 0xFFDBA8, secondary: 0xE0BD8C,
+        accent: 0xFFBB59, highlight: 0xFFF1D0, inks: [0xFFBB59])
     case .waffleCat:
-      ThemeProfile(
-        id: id, title: "Waffle Cat", summary: "Your Ghostty palette, in Maple Mono.",
-        scheme: .dark,
-        background: Color(hex: 0x292025), raised: Color(hex: 0x362D30),
-        // Secondary is lifted from the terminal's #A58C82 so it reads 4.5:1 on raised rows.
-        text: Color(hex: 0xFFF4D8), secondary: Color(hex: 0xB59D93),
-        accent: Color(hex: 0xC87D2A), highlight: Color(hex: 0xE4C56D),
-        separator: Color(hex: 0x3E3236), inks: [Color(hex: 0xC87D2A)], monospaced: true,
-        ring: .circle, finish: .spring, token: .roundedSquare, sound: .pat, overlay: .none,
-        dayClearTitle: "Day clear")
+      // Secondary is lifted from the terminal's #A58C82 so it reads 4.5:1 on raised rows.
+      Tokens(
+        background: 0x292025, raised: 0x362D30, text: 0xFFF4D8, secondary: 0xB59D93,
+        accent: 0xC87D2A, highlight: 0xE4C56D, inks: [0xC87D2A])
     case .flexokiLight:
-      ThemeProfile(
-        id: id, title: "Flexoki Light", summary: "Ink on warm paper; every finish a new ink.",
-        scheme: .light,
-        background: Color(hex: 0xFFFCF0), raised: Color(hex: 0xF2F0E5),
-        text: Color(hex: 0x100F0F), secondary: Color(hex: 0x66655F),
-        accent: Color(hex: 0x205EA6), highlight: Color(hex: 0x205EA6),
-        separator: Color(hex: 0xDAD8CE),
-        // Flexoki 600-level inks: the 400 yellow and cyan fail 3:1 on this paper.
-        inks: ThemeProfile.flexokiInks.map(Color.init(hex:)), monospaced: true, ring: .circle,
-        finish: .ink, token: .dot, sound: .tock, overlay: .none, dayClearTitle: "Day clear")
+      // Flexoki 600-level inks: the 400 yellow and cyan fail 3:1 on this paper.
+      Tokens(
+        background: 0xFFFCF0, raised: 0xF2F0E5, text: 0x100F0F, secondary: 0x66655F,
+        accent: 0x205EA6, highlight: 0x205EA6, inks: flexokiInks)
     }
+  }
+
+  public static func named(_ id: ThemeID) -> ThemeProfile {
+    let tokens = tokens(id)
+    var profile = ThemeProfile(
+      id: id, title: "", summary: "", scheme: .dark, background: Color(hex: tokens.background),
+      raised: Color(hex: tokens.raised), text: Color(hex: tokens.text),
+      secondary: Color(hex: tokens.secondary), accent: Color(hex: tokens.accent),
+      highlight: Color(hex: tokens.highlight), separator: Color.white.opacity(0.08),
+      inks: tokens.inks.map(Color.init(hex:)), monospaced: false, ring: .circle,
+      finish: .spring, token: .roundedSquare, sound: .tock, overlay: .none,
+      dayClearTitle: "Day clear")
+    switch id {
+    case .quietNative:
+      profile.title = "Quiet Native"
+      profile.summary = "Refined Graphite. The default."
+    case .phosphor:
+      profile.title = "Phosphor"
+      profile.summary = "Amber CRT, committed."
+      profile.separator = Color(hex: 0xE0BD8C).opacity(0.16)
+      profile.monospaced = true
+      profile.ring = .square
+      profile.finish = .flare
+      profile.token = .bar
+      profile.sound = .beep
+      profile.overlay = .crt
+      profile.dayClearTitle = "DAY CLEAR"
+    case .waffleCat:
+      profile.title = "Waffle Cat"
+      profile.summary = "Your Ghostty palette, in Maple Mono."
+      profile.separator = Color(hex: 0x3E3236)
+      profile.monospaced = true
+      profile.sound = .pat
+    case .flexokiLight:
+      profile.title = "Flexoki Light"
+      profile.summary = "Ink on warm paper; every finish a new ink."
+      profile.scheme = .light
+      profile.separator = Color(hex: 0xDAD8CE)
+      profile.monospaced = true
+      profile.finish = .ink
+      profile.token = .dot
+    }
+    return profile
   }
 
   static let flexokiInks: [UInt32] = [

@@ -43,9 +43,12 @@ struct MorningView: View {
         }
       }
       HStack {
-        Text(panel.morningPicks.isEmpty ? "Nothing picked yet" : "\(panel.morningPicks.count) for today")
-          .font(theme.font(12)).foregroundStyle(theme.accent)
-          .contentTransition(.numericText())
+        Text(
+          panel.morningPicks.isEmpty
+            ? "Nothing picked yet" : "\(panel.morningPicks.count) for today"
+        )
+        .font(theme.font(12)).foregroundStyle(theme.accent)
+        .contentTransition(.numericText())
         Spacer()
         Button("Start the day ↵") {
           model.startDay(picking: panel.morningPicks)
@@ -164,7 +167,8 @@ struct MoveView: View {
             .padding(9)
             .overlay(
               RoundedRectangle(cornerRadius: 7).strokeBorder(
-                panel.moveIndex == index ? theme.accent : .clear, lineWidth: 1.5))
+                panel.moveIndex == index ? theme.accent : .clear, lineWidth: 1.5)
+            )
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
@@ -321,7 +325,8 @@ struct HelpView: View {
               .tracking(1.2).foregroundStyle(theme.secondary)
             ForEach(group.1, id: \.0) { key, action in
               HStack(alignment: .top) {
-                Text(key).font(.system(size: 12, design: .monospaced)).frame(width: 96, alignment: .leading)
+                Text(key).font(.system(size: 12, design: .monospaced)).frame(
+                  width: 96, alignment: .leading)
                 Text(action).font(theme.font(13))
               }
             }
@@ -442,7 +447,8 @@ struct SettingsView: View {
               }
               .padding(8)
               .background(
-                id == preferences.theme ? theme.raised : .clear, in: RoundedRectangle(cornerRadius: 7)
+                id == preferences.theme ? theme.raised : .clear,
+                in: RoundedRectangle(cornerRadius: 7)
               )
               .contentShape(Rectangle())
             }
@@ -458,8 +464,10 @@ struct SettingsView: View {
         Toggle("Sounds when you finish", isOn: $preferences.soundEnabled).font(theme.font(12))
         Toggle("Show the current task in the menu bar", isOn: $preferences.tickerShowsTask)
           .font(theme.font(12))
-        Toggle("⌃⌥X finishes the menu-bar task from anywhere", isOn: $preferences.finishHotKeyEnabled)
-          .font(theme.font(12))
+        Toggle(
+          "⌃⌥X finishes the menu-bar task from anywhere", isOn: $preferences.finishHotKeyEnabled
+        )
+        .font(theme.font(12))
         Picker("Catch into", selection: $preferences.inboxID) {
           Text("Reminders default").tag("")
           ForEach(model.writableLists) { Text($0.title).tag($0.id) }

@@ -163,6 +163,8 @@ public struct CaptureBarView: View {
           }
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
+        .opacity(motion.isLeaving(item.id) ? 0 : 1)
+        .transition(.identity)
         .background {
           if capture.listIndex == index {
             RoundedRectangle(cornerRadius: 7).strokeBorder(theme.accent, lineWidth: 1.5)
@@ -208,7 +210,9 @@ struct ChipStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
       .padding(.horizontal, 8).padding(.vertical, 3)
-      .foregroundStyle(kind == .on ? theme.background : (kind == .date ? theme.highlight : theme.secondary))
+      .foregroundStyle(
+        kind == .on ? theme.background : (kind == .date ? theme.highlight : theme.secondary)
+      )
       .background(background, in: RoundedRectangle(cornerRadius: 6))
       .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(border))
       .opacity(configuration.isPressed ? 0.7 : 1)
