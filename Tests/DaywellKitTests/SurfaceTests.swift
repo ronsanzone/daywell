@@ -138,6 +138,9 @@ import Testing
   }
 
   @Test func tickerSaysTheRightThing() async throws {
+    // A status item needs a window-server connection, which NSApplication sets up.
+    // Headless test runners (CI) have none until it exists.
+    _ = NSApplication.shared
     let (model, _, _, _) = try await make()
     let defaults = try #require(UserDefaults(suiteName: UUID().uuidString))
     let ticker = StatusTicker(model: model, preferences: Preferences(defaults: defaults)) {}
