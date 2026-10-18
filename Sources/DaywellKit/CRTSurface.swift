@@ -4,8 +4,8 @@ import SwiftUI
 /// A static, non-interactive surface. Native text fields never enter a shader-filtered layer.
 struct CRTSurface: View {
   @Environment(\.displayScale) private var displayScale
-  @State private var image: CGImage?
-  @State private var failed = false
+  @ViewState private var image: CGImage?
+  @ViewState private var failed = false
 
   var body: some View {
     GeometryReader { geometry in

@@ -23,38 +23,22 @@ public struct Commitment: Codable, Equatable, Sendable {
   }
 }
 
-public struct DayProjection: Equatable, Sendable {
-  public var today: [ReminderItem]
-  public var due: [ReminderItem]
-  public var previous: [ReminderItem]
-  public var done: [ReminderItem]
-  public var unresolved: [Commitment]
-  public var pinnedReminderID: String?
-
-  public init(
-    today: [ReminderItem] = [], due: [ReminderItem] = [],
-    previous: [ReminderItem] = [], done: [ReminderItem] = [],
-    unresolved: [Commitment] = [], pinnedReminderID: String? = nil
-  ) {
-    self.today = today
-    self.due = due
-    self.previous = previous
-    self.done = done
-    self.unresolved = unresolved
-    self.pinnedReminderID = pinnedReminderID
-  }
-}
-
+/// Companion-only choices: which reminders are today's commitments, their order,
+/// and the single pin. Apple Reminders stays authoritative for the reminders.
 public struct DayPlan: Codable, Equatable, Sendable {
   public static let currentSchemaVersion = 1
   public var schemaVersion: Int
   public var commitments: [Commitment]
   public var pinnedCommitmentID: UUID?
+  /// The day key on which the morning pull was last shown or dismissed.
+  /// Optional and additive, so version 1 files decode unchanged.
+  public var morningPullDay: String?
 
   public init() {
     schemaVersion = Self.currentSchemaVersion
     commitments = []
     pinnedCommitmentID = nil
+    morningPullDay = nil
   }
 
   public mutating func choose(_ reminderID: String, on date: Date, calendar: Calendar) {
@@ -80,6 +64,7 @@ public struct DayPlan: Codable, Equatable, Sendable {
     }
   }
 
+  /// Pinning makes a task "the one in view". It chooses the task for today if needed.
   public mutating func pin(_ reminderID: String, on date: Date, calendar: Calendar) {
     choose(reminderID, on: date, calendar: calendar)
     pinnedCommitmentID = commitments.first { $0.reminderID == reminderID }?.id
@@ -102,55 +87,44 @@ public struct DayPlan: Codable, Equatable, Sendable {
     }
   }
 
-  public func projection(
-    reminders: [ReminderItem], now: Date,
-    calendar: Calendar
-  ) -> DayProjection {
-    let todayKey = Self.dayKey(for: now, calendar: calendar)
-    let byID = Dictionary(reminders.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    let active = commitments.filter { $0.day == todayKey }.sorted(by: commitmentOrder)
-    let prior = commitments.filter { $0.day < todayKey }.sorted(by: commitmentOrder)
-    let visibleToday = active.compactMap { byID[$0.reminderID] }.filter { !$0.isCompleted }
-    let todayIDs = Set(active.map(\.reminderID))
-    let previous = prior.compactMap { byID[$0.reminderID] }.filter { !$0.isCompleted }
-    let unresolved = commitments.filter { byID[$0.reminderID] == nil }
-    let due = reminders.filter { reminder in
-      guard !reminder.isCompleted, !todayIDs.contains(reminder.id),
-        let dueDate = reminder.dueDate
-      else { return false }
-      return Self.dayKey(for: dueDate, calendar: calendar) <= todayKey
+  /// Moves a commitment up (negative) or down (positive) among today's commitments.
+  public mutating func reorder(
+    _ reminderID: String, by offset: Int, among orderedIDs: [String], on date: Date
+  ) {
+    guard let from = orderedIDs.firstIndex(of: reminderID), offset != 0 else { return }
+    let to = min(max(from + offset, 0), orderedIDs.count - 1)
+    guard to != from else { return }
+    var ids = orderedIDs
+    ids.remove(at: from)
+    ids.insert(reminderID, at: to)
+    for (order, id) in ids.enumerated() {
+      if let index = commitments.firstIndex(where: { $0.reminderID == id }) {
+        commitments[index].order = order
+        commitments[index].updatedAt = date
+      }
     }
-    let done = reminders.filter { reminder in
-      guard reminder.isCompleted, let completionDate = reminder.completionDate else { return false }
-      return Self.dayKey(for: completionDate, calendar: calendar) == todayKey
-    }
-    let pinnedReminderID: String? = pinnedCommitmentID.flatMap { pinnedID in
-      guard let id = active.first(where: { $0.id == pinnedID })?.reminderID,
-        visibleToday.contains(where: { $0.id == id })
-      else { return nil }
-      return id
-    }
-    return DayProjection(
-      today: visibleToday, due: due, previous: previous, done: done,
-      unresolved: unresolved, pinnedReminderID: pinnedReminderID)
   }
 
-  private func commitmentOrder(_ lhs: Commitment, _ rhs: Commitment) -> Bool {
-    if lhs.id == rhs.id { return false }
-    if lhs.id == pinnedCommitmentID { return true }
-    if rhs.id == pinnedCommitmentID { return false }
-    if lhs.day != rhs.day { return lhs.day < rhs.day }
-    return lhs.order < rhs.order
+  /// Re-links a commitment whose Apple identifier changed, without guessing by title.
+  public mutating func relink(from oldID: String, to newID: String) {
+    guard oldID != newID, !commitments.contains(where: { $0.reminderID == newID }) else { return }
+    for index in commitments.indices where commitments[index].reminderID == oldID {
+      commitments[index].reminderID = newID
+    }
   }
 
-  private func nextOrder(on day: String, excluding excludedIndex: Int? = nil) -> Int {
+  public mutating func markMorningPull(on date: Date, calendar: Calendar) {
+    morningPullDay = Self.dayKey(for: date, calendar: calendar)
+  }
+
+  func nextOrder(on day: String, excluding excludedIndex: Int? = nil) -> Int {
     commitments.indices
       .filter { $0 != excludedIndex && commitments[$0].day == day }
       .map { commitments[$0].order }
       .max().map { $0 + 1 } ?? 0
   }
 
-  private static func dayKey(for date: Date, calendar: Calendar) -> String {
+  public static func dayKey(for date: Date, calendar: Calendar) -> String {
     let components = calendar.dateComponents([.year, .month, .day], from: date)
     // All three components were explicitly requested from a Date.
     // swiftlint:disable:next force_unwrapping

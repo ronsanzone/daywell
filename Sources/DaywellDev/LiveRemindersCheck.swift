@@ -43,11 +43,13 @@ import EventKit
     let fixtures = EKEventStore()
     let prefix = "Daywell acceptance \(UUID().uuidString)"
     var testList: EKCalendar?
+    var createdShelf: EKCalendar?
     var failed = false
     do {
       guard try await adapter.requestAccess() else { throw ReminderError.denied }
       permissionTimeout.cancel()
       print("PASS: native Reminders permission granted")
+      await measureFetch(fixtures)
       if let recovery {
         guard let list = fixtures.calendar(withIdentifier: recovery.listID),
           list.title == "Daywell Test",
@@ -90,7 +92,7 @@ import EventKit
       // Construct after list creation so the adapter's EventKit cache starts
       // with the test calendar already present.
       let store = EventKitReminderStore()
-      let initial = try await store.fetch()
+      let initial = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
       try check(
         initial.lists.contains { $0.id == list.calendarIdentifier && $0.isWritable },
         "new list is visible and writable through the app adapter")
@@ -156,10 +158,38 @@ import EventKit
       item = try await snapshot(item.id, in: store)
       try check(item.notes == "External fixture edit", "refresh sees the external edit")
       try await store.delete(item)
-      let afterDelete = try await store.fetch()
+      let afterDelete = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
       try check(
         !afterDelete.reminders.contains { $0.id == item.id },
         "confirmed deletion removes only the disposable reminder")
+
+      // Moving between lists: does the reminder keep its identifier, and does its
+      // My Day choice follow it? The first-run section sort depends on this.
+      let shelf = try await store.createList(named: "Daywell Test Shelf")
+      createdShelf = fixtures.calendar(withIdentifier: shelf.id)
+      try check(createdShelf != nil, "store.createList creates a new writable list")
+      let movable = try await store.save(
+        ReminderItem(
+          id: "", title: "\(prefix) movable", listID: list.calendarIdentifier,
+          listName: list.title), replacing: nil)
+      let moveDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+        UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: moveDirectory) }
+      let moveModel = DayModel(
+        store: store, planStore: PlanStore(url: moveDirectory.appendingPathComponent("plan.json")))
+      await moveModel.refresh()
+      moveModel.choose(movable.id)
+      await moveModel.move(movable.id, toList: shelf.id)
+      let moved = moveModel.reminders.first { $0.title == movable.title }
+      print(
+        "RESULT: identifier \(moved?.id == movable.id ? "SURVIVES" : "CHANGES") when a reminder moves between lists (before \(movable.id), after \(moved?.id ?? "missing"))"
+      )
+      try check(moved?.listID == shelf.id, "move puts the reminder in the target list")
+      await moveModel.refresh()
+      try check(
+        moveModel.today.myDay.contains { $0.title == movable.title },
+        "the My Day choice follows the moved reminder after a fresh fetch")
+      if let moved { try await store.delete(moved) }
 
       let recurring = EKReminder(eventStore: fixtures)
       recurring.calendar = list
@@ -173,16 +203,16 @@ import EventKit
       let planDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
         UUID().uuidString)
       defer { try? FileManager.default.removeItem(at: planDirectory) }
-      let model = AppModel(
+      let model = DayModel(
         store: store, planStore: PlanStore(url: planDirectory.appendingPathComponent("plan.json")))
       await model.refresh()
       model.pin(beforeRecurring.id)
-      await model.complete(beforeRecurring.id)
+      await model.toggleCompletion(beforeRecurring.id)
       try check(
         model.error == nil && model.undo == nil
           && !model.plan.commitments.contains { $0.reminderID == beforeRecurring.id },
         "auto-advanced recurrence releases its commitment and offers no unsafe undo")
-      let recurringState = try await store.fetch()
+      let recurringState = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date()))
       let occurrences = recurringState.reminders.filter { $0.listID == list.calendarIdentifier }
       try check(
         occurrences.count == 2
@@ -194,8 +224,8 @@ import EventKit
           $0.id == beforeRecurring.id && !$0.isCompleted
             && $0.dueDate == calendar.date(byAdding: .day, value: 1, to: tomorrow)
         }, "the next occurrence remains at its advanced deadline")
-      await model.undoCompletion()
-      let afterNoUndo = try await store.fetch().reminders.filter {
+      await model.undoLast()
+      let afterNoUndo = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date())).reminders.filter {
         $0.listID == list.calendarIdentifier
       }
       try check(
@@ -220,6 +250,25 @@ import EventKit
       fflush(stdout)
     }
 
+    if let shelf = createdShelf {
+      do {
+        let remaining = await fetch(in: shelf, store: fixtures, prefix: prefix)
+        for entry in remaining ?? [] where entry.owned {
+          if let reminder = fixtures.calendarItem(withIdentifier: entry.id) as? EKReminder {
+            try fixtures.remove(reminder, commit: true)
+          }
+        }
+        if let final = await fetch(in: shelf, store: fixtures, prefix: prefix), final.isEmpty {
+          try fixtures.removeCalendar(shelf, commit: true)
+          print("PASS: the disposable test shelf was removed")
+        } else {
+          throw CheckFailure(message: "Test shelf not verified empty; left it intact")
+        }
+      } catch {
+        failed = true
+        print("CLEANUP REQUIRED: \(error.localizedDescription)")
+      }
+    }
     if let list = testList {
       do {
         let remaining = await fetch(in: list, store: fixtures, prefix: prefix)
@@ -252,10 +301,49 @@ import EventKit
     return failed ? 1 : 0
   }
 
+  /// Read-only: how long the old everything-fetch takes versus the two narrow fetches.
+  private static func measureFetch(_ store: EKEventStore) async {
+    let calendars = store.calendars(for: .reminder)
+    let clock = ContinuousClock()
+    func run(_ predicate: NSPredicate) async -> Int {
+      await withCheckedContinuation { continuation in
+        store.fetchReminders(matching: predicate) { @Sendable in
+          continuation.resume(returning: $0?.count ?? 0)
+        }
+      }
+    }
+    func runConcurrently(_ predicates: [NSPredicate]) async -> Int {
+      await withCheckedContinuation { continuation in
+        let counter = Counter(expected: predicates.count, continuation: continuation)
+        for predicate in predicates {
+          store.fetchReminders(matching: predicate) { @Sendable in counter.add($0?.count ?? 0) }
+        }
+      }
+    }
+    for round in 1...3 {
+      let oldStart = clock.now
+      let all = await run(store.predicateForReminders(in: calendars))
+      let oldTime = clock.now - oldStart
+      let newStart = clock.now
+      let narrow = await runConcurrently([
+        store.predicateForIncompleteReminders(
+          withDueDateStarting: nil, ending: nil, calendars: calendars),
+        store.predicateForCompletedReminders(
+          withCompletionDateStarting: Calendar.current.startOfDay(for: Date()), ending: nil,
+          calendars: calendars),
+      ])
+      let newTime = clock.now - newStart
+      print(
+        "MEASURE round \(round): all-reminders fetch \(all) items in \(oldTime); open+today fetch \(narrow) items in \(newTime)"
+      )
+    }
+    fflush(stdout)
+  }
+
   private static func snapshot(_ id: String, in store: EventKitReminderStore) async throws
     -> ReminderItem
   {
-    guard let item = try await store.fetch().reminders.first(where: { $0.id == id }) else {
+    guard let item = try await store.fetch(completedSince: Calendar.current.startOfDay(for: Date())).reminders.first(where: { $0.id == id }) else {
       throw ReminderError.missing
     }
     return item
@@ -284,5 +372,23 @@ import EventKit
   private struct CheckFailure: LocalizedError {
     let message: String
     var errorDescription: String? { message }
+  }
+}
+
+private final class Counter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var remaining: Int
+  private var total = 0
+  private let continuation: CheckedContinuation<Int, Never>
+  init(expected: Int, continuation: CheckedContinuation<Int, Never>) {
+    remaining = expected
+    self.continuation = continuation
+  }
+  func add(_ count: Int) {
+    lock.lock()
+    defer { lock.unlock() }
+    total += count
+    remaining -= 1
+    if remaining == 0 { continuation.resume(returning: total) }
   }
 }

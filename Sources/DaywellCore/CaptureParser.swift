@@ -1,94 +1,114 @@
 import Foundation
 
+/// What a line typed into the capture bar means. The UI shows each interpreted part
+/// as a removable chip; nothing here is saved until the user presses Return.
 public struct CaptureResult: Equatable, Sendable {
   public let title: String
   public let dueDate: Date?
   public let hasTime: Bool
-  public let interpretation: String?
+  /// The literal date phrase that was interpreted, e.g. "tmrw at 2pm".
+  public let datePhrase: String?
+  /// The text after "/" naming a shelf, e.g. "work" from "/work".
+  public let shelfQuery: String?
 
-  public init(title: String, dueDate: Date?, hasTime: Bool, interpretation: String?) {
+  public init(
+    title: String, dueDate: Date?, hasTime: Bool, datePhrase: String? = nil,
+    shelfQuery: String? = nil
+  ) {
     self.title = title
     self.dueDate = dueDate
     self.hasTime = hasTime
-    self.interpretation = interpretation
+    self.datePhrase = datePhrase
+    self.shelfQuery = shelfQuery
   }
 }
 
 public enum CaptureParser {
-  // Accepted (case-insensitive) grammar is a non-empty title followed by:
-  //   today | tomorrow | [next] <weekday>
-  // and optionally "at" plus noon, midnight, h[[:]mm]am/pm, or HH:mm.
-  // Only a terminal suffix is considered. Invalid input, DST gaps/overlaps, and
-  // date phrases without a title are returned literally and wholly unparsed.
+  // Grammar, case-insensitive, deterministic:
+  //   <title> [/shelf] [<day> [[at] <time>]]
+  // The shelf token "/name" may appear anywhere; the last one wins.
+  // <day>: today | tomorrow | tmrw | tmr | [next] <weekday or 3-letter weekday>
+  // <time>: noon | midnight | h[:mm]am/pm | HH:mm
+  // The date phrase must end the line. Invalid dates, DST gaps or overlaps, and
+  // phrases with no title stay literal in the title; nothing is guessed.
   public static func parse(
     _ input: String,
     now: Date = Date(),
     calendar: Calendar = Calendar.current
   ) -> CaptureResult {
-    let literal = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard
-      let match = suffix.firstMatch(
-        in: literal,
-        range: NSRange(literal.startIndex..., in: literal)
-      ), let titleRange = Range(match.range(at: 1), in: literal),
-      let dayRange = Range(match.range(at: 2), in: literal)
-    else {
-      return fallback(literal)
+    var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    var shelfQuery: String?
+    let range = NSRange(text.startIndex..., in: text)
+    if let match = shelfToken.matches(in: text, range: range).last,
+      let whole = Range(match.range, in: text), let name = Range(match.range(at: 1), in: text)
+    {
+      let candidate = String(text[name])
+      let remaining = (text[..<whole.lowerBound] + " " + text[whole.upperBound...])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !remaining.isEmpty {
+        shelfQuery = candidate
+        text = remaining.replacingOccurrences(of: "  ", with: " ")
+      }
     }
+    return parseDate(text, shelfQuery: shelfQuery, now: now, calendar: calendar)
+  }
+
+  private static func parseDate(
+    _ literal: String, shelfQuery: String?, now: Date, calendar: Calendar
+  ) -> CaptureResult {
+    let fallback = CaptureResult(
+      title: literal, dueDate: nil, hasTime: false, shelfQuery: shelfQuery)
+    guard
+      let match = suffix.firstMatch(in: literal, range: NSRange(literal.startIndex..., in: literal)),
+      let titleRange = Range(match.range(at: 1), in: literal),
+      let dayRange = Range(match.range(at: 2), in: literal),
+      let phraseStart = Range(match.range(at: 2), in: literal)?.lowerBound
+    else { return fallback }
 
     let title = String(literal[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !title.isEmpty else { return fallback(literal) }
+    guard !title.isEmpty,
+      let day = resolveDay(String(literal[dayRange]).lowercased(), now: now, calendar: calendar)
+    else { return fallback }
+    let phrase = String(literal[phraseStart...])
 
-    let dayText = String(literal[dayRange]).lowercased()
-    guard let day = resolveDay(dayText, now: now, calendar: calendar) else {
-      return fallback(literal)
-    }
-
-    let hasTime = match.range(at: 3).location != NSNotFound
-    if !hasTime {
+    guard match.range(at: 3).location != NSNotFound else {
       return CaptureResult(
-        title: title,
-        dueDate: calendar.startOfDay(for: day),
-        hasTime: false,
-        interpretation: "Due \(dayText) (date only)"
-      )
+        title: title, dueDate: calendar.startOfDay(for: day), hasTime: false,
+        datePhrase: phrase, shelfQuery: shelfQuery)
     }
-
     guard let timeRange = Range(match.range(at: 3), in: literal),
       let time = parseTime(String(literal[timeRange]).lowercased()),
       let dueDate = strictDate(day: day, hour: time.hour, minute: time.minute, calendar: calendar)
-    else {
-      return fallback(literal)
-    }
+    else { return fallback }
     return CaptureResult(
-      title: title,
-      dueDate: dueDate,
-      hasTime: true,
-      interpretation: "Due \(dayText) at \(String(literal[timeRange]))"
-    )
+      title: title, dueDate: dueDate, hasTime: true, datePhrase: phrase, shelfQuery: shelfQuery)
   }
 
-  // Constant pattern; parser tests exercise its compilation.
+  // Constant patterns; parser tests exercise their compilation.
+  // swiftlint:disable:next force_try
+  private static let shelfToken = try! NSRegularExpression(
+    pattern: #"(?:^|\s)/([\p{L}\p{N}][\p{L}\p{N}_\-]*)(?=\s|$)"#)
+
+  private static let weekdays =
+    "monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun"
+
   // swiftlint:disable:next force_try
   private static let suffix = try! NSRegularExpression(
     pattern:
-      #"^(.+?)\s+((?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tomorrow)(?:\s+at\s+(noon|midnight|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}))?$"#,
+      #"^(.+?)\s+((?:next\s+)?(?:\#(weekdays))|today|tomorrow|tmrw|tmr)(?:\s+(?:at\s+)?(noon|midnight|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}))?$"#,
     options: [.caseInsensitive]
   )
-
-  private static func fallback(_ title: String) -> CaptureResult {
-    CaptureResult(title: title, dueDate: nil, hasTime: false, interpretation: nil)
-  }
 
   private static func resolveDay(_ text: String, now: Date, calendar: Calendar) -> Date? {
     let start = calendar.startOfDay(for: now)
     if text == "today" { return start }
-    if text == "tomorrow" { return calendar.date(byAdding: .day, value: 1, to: start) }
-
+    if ["tomorrow", "tmrw", "tmr"].contains(text) {
+      return calendar.date(byAdding: .day, value: 1, to: start)
+    }
     let isNext = text.hasPrefix("next ")
-    let weekdayName = isNext ? String(text.dropFirst(5)) : text
-    let names = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-    guard let index = names.firstIndex(of: weekdayName) else { return nil }
+    let name = (isNext ? String(text.dropFirst(5)) : text).trimmingCharacters(in: .whitespaces)
+    let prefixes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+    guard let index = prefixes.firstIndex(where: { name.hasPrefix($0) }) else { return nil }
     let current = calendar.component(.weekday, from: start)
     var distance = (index + 1 - current + 7) % 7
     if isNext, distance == 0 { distance = 7 }
@@ -144,5 +164,14 @@ public enum CaptureParser {
       }
     }
     return date
+  }
+
+  /// Picks the shelf a "/query" names: exact title, then prefix, then contains.
+  public static func resolveShelf(_ query: String?, in lists: [ReminderList]) -> ReminderList? {
+    guard let query = query?.lowercased(), !query.isEmpty else { return nil }
+    let writable = lists.filter(\.isWritable)
+    return writable.first { $0.title.lowercased() == query }
+      ?? writable.first { $0.title.lowercased().hasPrefix(query) }
+      ?? writable.first { $0.title.lowercased().contains(query) }
   }
 }
