@@ -27,6 +27,15 @@ bash scripts/build-app.sh
 open dist/Daywell.app
 ```
 
+Install the newest build of `main` (CI publishes one per push as a GitHub release;
+needs `gh` signed in):
+
+```sh
+bash scripts/install-latest.sh
+```
+
+Builds are ad-hoc signed, so macOS may ask for Reminders access again after an update.
+
 Try it with disposable fixture reminders (never touches EventKit):
 
 ```sh
