@@ -47,7 +47,7 @@ Focused commands include `swift test --disable-xctest`,
 
 - Ordinary checks must never access live EventKit, write personal reminders,
   package, install, or re-sign the approved app.
-- `.build/debug/Daywell --ui-check` uses disposable fixtures and requires a GUI
+- `.build/debug/DaywellDev --ui-check` uses disposable fixtures and requires a GUI
   session. Run it for interaction changes after building `Daywell`.
 - `--live-check` changes real Reminders data. Run it only with explicit human
   authorization and the procedure in `docs/verification.md`.

@@ -311,6 +311,7 @@ import DaywellKit
       }
       if let id = model.today.myDay.first?.id {
         controller.panelState.selection = .task(id)
+        await record("before-\(theme.rawValue)", window: panel, frames: 1)
         let recorder = Task {
           await self.record("finish-\(theme.rawValue)", window: panel, frames: 30)
         }
@@ -326,6 +327,45 @@ import DaywellKit
       controller.hidePanel()
     }
 
+    // 11. ⌘K finds commands by name; sorting a list into shelves is one key per reminder.
+    controller.preferences.theme = .quietNative
+    controller.showPanel()
+    await wait(200)
+    await press("k", modifiers: .command, to: panel)
+    check(controller.panelState.route == .commands, "⌘K opens the command palette")
+    await type("sort", into: panel)
+    await press("return", to: panel, settle: 200)
+    guard case .sort(let sorting) = controller.panelState.route else {
+      check(false, "the palette starts the shelf sort")
+      return finish()
+    }
+    check(true, "the palette starts the shelf sort (\(sorting))")
+    let sorted = controller.panelState.sortQueue.first
+    let target = controller.panelState.sortTargets(from: sorting).first?.id
+    await record("sort", window: panel, frames: 2)
+    await press("1", to: panel, settle: 50)
+    for _ in 0..<50 where sorted.flatMap(model.reminder)?.listID != target { await wait(20) }
+    check(
+      sorted.flatMap(model.reminder)?.listID == target, "1 shelves the reminder on the first shelf")
+    await press("escape", to: panel)
+
+    // 12. Services → Catch in Daywell: one reminder per selected line.
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("daywell-check-\(UUID().uuidString)"))
+    pasteboard.clearContents()
+    pasteboard.setString("- buy oat milk\n- email Sam about the lease /devex", forType: .string)
+    var serviceError: NSString?
+    controller.catchService.catchText(pasteboard, userData: nil, error: &serviceError)
+    await wait(300)
+    check(serviceError == nil, "the service accepts selected text")
+    check(
+      store.items.contains { $0.title == "email Sam about the lease" && $0.listID == "devex" }
+        && store.items.contains { $0.title == "buy oat milk" },
+      "each selected line becomes its own reminder, honoring /shelf")
+    pasteboard.releaseGlobally()
+    return finish()
+  }
+
+  func finish() -> Int32 {
     printTimings()
     print("\(passed) passed, \(failures.count) failed")
     for failure in failures { print("  failed: \(failure)") }

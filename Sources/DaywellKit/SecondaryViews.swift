@@ -533,3 +533,125 @@ public final class RecorderView: NSView {
     return true
   }
 }
+
+// MARK: Sort a list into shelves
+
+struct SortView: View {
+  @Bindable var model: DayModel
+  @Bindable var panel: PanelState
+  let listID: String
+  @Environment(\.theme) private var theme
+
+  var body: some View {
+    let targets = panel.sortTargets(from: listID)
+    let total = panel.sortDone + panel.sortQueue.count
+    VStack(alignment: .leading, spacing: 14) {
+      HStack(alignment: .firstTextBaseline) {
+        Text("Sort into shelves").font(theme.font(18, .bold))
+        Spacer()
+        Text("\(panel.sortDone) of \(total)").font(.system(size: 12, design: .monospaced))
+          .foregroundStyle(theme.secondary)
+      }
+      ProgressView(value: Double(panel.sortDone), total: Double(max(total, 1))).tint(theme.accent)
+      if let id = panel.sortQueue.first, let item = model.reminder(id) {
+        Text(item.title).font(theme.font(20, .bold)).lineLimit(3)
+          .id(id).transition(.push(from: .trailing))
+        FlowLayout(spacing: 6) {
+          ForEach(Array(targets.enumerated()), id: \.element.id) { index, list in
+            Chip(title: list.title, picked: false, focused: false, number: index + 1) {
+              panel.sortQueue.removeFirst()
+              panel.sortDone += 1
+              Task { await model.move(id, toList: list.id) }
+            }
+          }
+        }
+        HStack(spacing: 14) {
+          KeyHint(keys: "1–9", label: "shelve")
+          KeyHint(keys: "t", label: "today")
+          KeyHint(keys: "s", label: "skip")
+          KeyHint(keys: "n", label: "new shelf")
+          KeyHint(keys: "esc", label: "done")
+        }
+      } else {
+        Text("Shelves ready").font(theme.font(24, .bold)).foregroundStyle(theme.highlight)
+        Text("Everything you sorted is on its shelf. Your iPhone and Siri see the same lists.")
+          .font(theme.font(13)).foregroundStyle(theme.secondary)
+        KeyHint(keys: "↵", label: "back to today")
+      }
+      if targets.isEmpty {
+        Text("No shelves yet. Press n to name your first one.").font(theme.font(12))
+          .foregroundStyle(theme.secondary)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(18)
+    .animation(.snappy(duration: 0.2), value: panel.sortQueue.first)
+  }
+}
+
+/// The one-time suggestion for people who keep everything in one sectioned list.
+struct ShelfSuggestion: View {
+  @Bindable var panel: PanelState
+  @Bindable var preferences: Preferences
+  let list: ReminderList
+  let count: Int
+  @Environment(\.theme) private var theme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("All \(count) reminders are in \(list.title).").font(theme.font(13, .semibold))
+      Text(
+        "Apple doesn't let apps see list sections, so shelves need their own lists. Sorting takes one key per reminder."
+      )
+      .font(theme.font(12)).foregroundStyle(theme.secondary).fixedSize(
+        horizontal: false, vertical: true)
+      HStack {
+        Button("Sort into shelves") {
+          preferences.shelfSortOffered = true
+          panel.beginSort(list.id)
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Not now") { preferences.shelfSortOffered = true }.buttonStyle(.plain)
+          .foregroundStyle(theme.secondary)
+      }
+      .font(theme.font(12))
+    }
+    .padding(12)
+    .background(theme.raised, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+/// Phosphor's instrument: it makes one slow orbit for every task you finish.
+struct OrbitalRelay: View {
+  let finishes: Int
+  @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @ViewState private var angle: Double = 0
+
+  var body: some View {
+    Canvas { context, size in
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      for (radius, rotation, opacity) in [(13.0, angle, 0.85), (8.0, -2 * angle, 0.5)] {
+        for offset in [0.0, 180.0] {
+          var arc = Path()
+          arc.addArc(
+            center: center, radius: radius, startAngle: .degrees(rotation + offset + 15),
+            endAngle: .degrees(rotation + offset + 150), clockwise: false)
+          context.stroke(arc, with: .color(theme.accent.opacity(opacity)), lineWidth: 1)
+        }
+      }
+      let radians = angle * .pi / 180
+      let dot = CGRect(
+        x: center.x - 1 + cos(radians) * 13, y: center.y - 1 + sin(radians) * 13, width: 2,
+        height: 2)
+      context.fill(Path(ellipseIn: dot), with: .color(theme.highlight))
+    }
+    .frame(width: 34, height: 34)
+    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(theme.accent.opacity(0.22)))
+    .accessibilityHidden(true)
+    .onChange(of: finishes) { _, _ in
+      guard !reduceMotion else { return }
+      withAnimation(.easeInOut(duration: 1.2)) { angle += 360 }
+    }
+  }
+}

@@ -61,6 +61,7 @@ public struct KeyInput: Sendable {
     case .today: return handleToday(key)
     case .morning: return handleMorning(key)
     case .move(let id): return handleMove(key, id: id)
+    case .sort(let listID): return handleSort(key, listID: listID)
     case .commands: return handleCommands(key)
     case .browse, .edit, .settings, .help:
       if key.special == .escape {
@@ -160,17 +161,21 @@ public struct KeyInput: Sendable {
     let lists = model.writableLists
     switch key.special {
     case .escape:
-      panel.route = .today
+      panel.route = panel.returnRoute ?? .today
+      panel.returnRoute = nil
       return true
     case .enter:
       if id.isEmpty || panel.moveIndex == lists.count {
         let name = panel.newShelfName
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return true }
+        let model = model
+        let panel = panel
         Task {
           if let list = await model.createShelf(named: name), !id.isEmpty {
             await model.move(id, toList: list.id)
           }
-          panel.route = .today
+          panel.route = panel.returnRoute ?? .today
+          panel.returnRoute = nil
         }
       } else if lists.indices.contains(panel.moveIndex) {
         let target = lists[panel.moveIndex].id
@@ -190,6 +195,46 @@ public struct KeyInput: Sendable {
     switch key.characters {
     case "j": panel.moveIndex = min(panel.moveIndex + 1, lists.count)
     case "k": panel.moveIndex = max(panel.moveIndex - 1, 0)
+    default: return false
+    }
+    return true
+  }
+
+  private func handleSort(_ key: KeyInput, listID: String) -> Bool {
+    guard let current = panel.sortQueue.first else {
+      if key.special == .escape || key.special == .enter { panel.route = .today }
+      return true
+    }
+    let advance = {
+      self.panel.sortQueue.removeFirst()
+      self.panel.sortDone += 1
+    }
+    switch key.special {
+    case .escape, .enter:
+      panel.route = .today
+      return true
+    case .right:
+      advance()
+      return true
+    default: break
+    }
+    switch key.characters {
+    case "s":
+      advance()
+    case "t":
+      model.choose(current)
+      advance()
+    case "n":
+      panel.newShelfName = ""
+      panel.moveIndex = -1
+      panel.returnRoute = .sort(listID)
+      panel.route = .move("")
+    case let digit where Int(digit).map({ (1...9).contains($0) }) == true:
+      let targets = panel.sortTargets(from: listID)
+      guard let number = Int(digit), targets.indices.contains(number - 1) else { return true }
+      let target = targets[number - 1].id
+      advance()
+      Task { await model.move(current, toList: target) }
     default: return false
     }
     return true

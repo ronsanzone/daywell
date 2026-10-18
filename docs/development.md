@@ -28,7 +28,7 @@ Useful focused checks are:
 swift format lint --strict -r Sources Tests Package.swift
 swift build --product Daywell
 swift test --disable-xctest
-.build/debug/Daywell --ui-check
+.build/debug/DaywellDev --ui-check
 ```
 
 The first three are ordinary, noninteractive checks. They must never initialize
@@ -249,7 +249,7 @@ also build the executable and run fixture-backed native checks:
 
 ```sh
 swift build --product Daywell
-.build/debug/Daywell --ui-check
+.build/debug/DaywellDev --ui-check
 ```
 
 Verify both keyboard and pointer entry points when they share an action. Exercise

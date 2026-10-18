@@ -31,13 +31,16 @@ public struct PanelView: View {
           PermissionView(model: model)
         } else {
           switch panel.route {
-          case .today: TodayView(model: model, panel: panel, motion: motion, shell: shell)
+          case .today:
+            TodayView(
+              model: model, panel: panel, preferences: preferences, motion: motion, shell: shell)
           case .morning: MorningView(model: model, panel: panel)
           case .browse: BrowseView(model: model, panel: panel)
           case .commands: CommandPaletteView(model: model, panel: panel, shell: shell)
           case .help: HelpView(panel: panel)
           case .settings: SettingsView(model: model, panel: panel, preferences: preferences)
           case .move(let id): MoveView(model: model, panel: panel, reminderID: id)
+          case .sort(let listID): SortView(model: model, panel: panel, listID: listID)
           case .edit(let id):
             if let item = model.reminder(id) {
               EditorView(model: model, panel: panel, original: item).id(id)
@@ -72,6 +75,7 @@ public struct PanelView: View {
 struct TodayView: View {
   @Bindable var model: DayModel
   @Bindable var panel: PanelState
+  @Bindable var preferences: Preferences
   let motion: MotionState
   let shell: ShellActions
   @Environment(\.theme) private var theme
@@ -82,6 +86,13 @@ struct TodayView: View {
       ScrollViewReader { proxy in
         ScrollView {
           VStack(alignment: .leading, spacing: 2) {
+            if !preferences.shelfSortOffered, let suggestion = panel.sectionedListSuggestion {
+              ShelfSuggestion(
+                panel: panel, preferences: preferences, list: suggestion.list,
+                count: suggestion.count
+              )
+              .padding(.bottom, 8)
+            }
             myDay
             if !model.today.due.isEmpty { dueSection }
             if !model.today.shelves.isEmpty { shelves }
@@ -100,6 +111,9 @@ struct TodayView: View {
 
   private var header: some View {
     HStack(alignment: .lastTextBaseline) {
+      if theme.id == .phosphor {
+        OrbitalRelay(finishes: motion.finishCount).alignmentGuide(.lastTextBaseline) { $0[.bottom] }
+      }
       VStack(alignment: .leading, spacing: 2) {
         Text("My Day").font(theme.font(20, .bold))
         Text(model.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
@@ -141,8 +155,7 @@ struct TodayView: View {
         pinned: model.today.pinnedID == item.id
       )
       .id(PanelRow.task(item.id))
-      .transition(
-        .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
+      .transition(.asymmetric(insertion: .opacity, removal: .identity))
     }
   }
 
@@ -317,7 +330,7 @@ struct TaskRow: View {
     }
     .padding(.leading, indent ? 18 : 4).padding(.trailing, 10).padding(.vertical, 5)
     .background(background)
-    .opacity(motion.isLeaving(item.id) ? 0 : 1)
+    .collapses(when: motion.isLeaving(item.id))
     .contentShape(Rectangle())
     .onTapGesture { panel.selection = row }
     .accessibilityElement(children: .contain)
@@ -406,15 +419,15 @@ struct DayClearOverlay: View {
   var body: some View {
     ZStack {
       if visible {
+        // A scrim keeps the moment readable over whatever is behind it.
+        theme.background.opacity(0.86).transition(.opacity)
         VStack(spacing: 6) {
-          Text(theme.dayClearTitle).font(theme.font(30, .bold))
+          Text(theme.dayClearTitle).font(theme.font(32, .bold))
             .foregroundStyle(theme.highlight)
             .shadow(color: theme.overlay == .crt ? theme.accent : .clear, radius: 10)
           Text("\(model.today.pile.count) finished · resets quietly at midnight")
             .font(theme.font(12)).foregroundStyle(theme.secondary)
         }
-        .padding(24)
-        .background(theme.background.opacity(0.92), in: RoundedRectangle(cornerRadius: 14))
         .transition(reduceMotion ? .opacity : .scale(scale: 0.8).combined(with: .opacity))
       }
     }

@@ -14,7 +14,7 @@ import DaywellCore
 /// The one command registry: palette, help, keys and buttons all use it.
 public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
   case capture, browse, finish, pin, pull, release, move, edit, reorderUp, reorderDown, undo,
-    morning, shelves, newShelf, help, settings, appleReminders, quit
+    morning, shelves, newShelf, sortShelves, help, settings, appleReminders, quit
 
   public var id: String { rawValue }
 
@@ -34,6 +34,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
     case .morning: "Pick today's few"
     case .shelves: "Open / close all shelves"
     case .newShelf: "New shelf"
+    case .sortShelves: "Sort a list into shelves"
     case .help: "Keyboard shortcuts"
     case .settings: "Settings"
     case .appleReminders: "Open Apple Reminders"
@@ -57,6 +58,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
     case .morning: "sun.max"
     case .shelves: "books.vertical"
     case .newShelf: "folder.badge.plus"
+    case .sortShelves: "square.stack.3d.down.right"
     case .help: "keyboard"
     case .settings: "gearshape"
     case .appleReminders: "arrow.up.forward.app"
@@ -80,7 +82,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
     case .undo: "⌘Z"
     case .morning: ""
     case .shelves: "s"
-    case .newShelf: ""
+    case .newShelf, .sortShelves: ""
     case .help: "?"
     case .settings: "⌘,"
     case .appleReminders: ""
@@ -101,6 +103,7 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
     case .undo: return model.undo != nil
     case .capture: return model.authorized && !model.writableLists.isEmpty
     case .newShelf: return model.authorized
+    case .sortShelves: return !model.writableLists.isEmpty
     default: return true
     }
   }
@@ -131,6 +134,12 @@ public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
       panel.newShelfName = ""
       panel.moveIndex = -1
       panel.route = .move("")
+    case .sortShelves:
+      let busiest = model.writableLists.max { lhs, rhs in
+        model.reminders.filter { $0.listID == lhs.id && !$0.isCompleted }.count
+          < model.reminders.filter { $0.listID == rhs.id && !$0.isCompleted }.count
+      }
+      if let busiest { panel.beginSort(busiest.id) }
     case .help: panel.route = .help
     case .settings: panel.route = .settings
     case .appleReminders:

@@ -76,12 +76,14 @@ import SwiftUI
       // so a leaving row never overlaps its neighbour.
       // A timer, not an animation completion: completions don't fire while the
       // window is hidden, and a hidden panel must never keep a finished row.
-      withAnimation(.easeOut(duration: 0.14)) { lingering[id]?.leaving = true }
+      // The row fades and collapses in place (CollapseWhenLeaving), then is removed
+      // without a transition, so no removed view ever lingers over its neighbours.
+      withAnimation(.easeInOut(duration: 0.22)) { lingering[id]?.leaving = true }
       Task { [weak self] in
-        try? await Task.sleep(for: .milliseconds(160))
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-          _ = self?.lingering.removeValue(forKey: id)
-        }
+        try? await Task.sleep(for: .milliseconds(240))
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { _ = self?.lingering.removeValue(forKey: id) }
       }
     } else {
       Task { [weak self] in
@@ -89,5 +91,24 @@ import SwiftUI
         self?.release(id)
       }
     }
+  }
+}
+
+/// Fades a finished row out and closes its gap by animating its height to zero.
+/// SwiftUI animates the change from the row's natural height, so no measuring is needed.
+struct CollapseWhenLeaving: ViewModifier {
+  let leaving: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .frame(height: leaving ? 0 : nil, alignment: .top)
+      .opacity(leaving ? 0 : 1)
+      .clipped()
+  }
+}
+
+extension View {
+  func collapses(when leaving: Bool) -> some View {
+    modifier(CollapseWhenLeaving(leaving: leaving))
   }
 }

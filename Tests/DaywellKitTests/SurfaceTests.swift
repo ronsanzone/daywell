@@ -146,11 +146,65 @@ import Testing
     await model.toggleCompletion("mitigation")
     #expect(
       ticker.text == "Create mitigation ticke…", "the struck title holds while the motion plays")
-    try await Task.sleep(for: .milliseconds(500))
-    #expect(ticker.text.hasSuffix(" · undo"))
+    #expect(await eventually { ticker.text.hasSuffix(" · undo") }, "\(ticker.text)")
     for task in model.today.myDay { await model.toggleCompletion(task.id) }
-    try await Task.sleep(for: .milliseconds(500))
-    #expect(ticker.text.hasPrefix("Day clear · "))
+    #expect(await eventually { ticker.text.hasPrefix("Day clear · ") }, "\(ticker.text)")
     NSStatusBar.system.removeStatusItem(ticker.item)
+  }
+
+  @Test func catchServiceTurnsLinesIntoReminders() async throws {
+    let (model, _, _, store) = try await make()
+    #expect(
+      CatchService.lines(in: "- buy oat milk\n\n* email Sam /devex\n- [ ] book flights fri ")
+        == ["buy oat milk", "email Sam /devex", "book flights fri"])
+    let saved = await CatchService(model: model).catchLines("buy oat milk\nemail Sam /devex")
+    #expect(saved == 2)
+    #expect(store.items.contains { $0.title == "buy oat milk" && $0.listID == "inbox" })
+    #expect(store.items.contains { $0.title == "email Sam" && $0.listID == "devex" })
+  }
+
+  @Test func sortKeysShelveTodayAndSkipOneKeyEach() async throws {
+    let (model, panel, _, _) = try await make()
+    let keys = PanelKeys(model: model, panel: panel, shell: shell { _ in })
+    panel.beginSort("devex")
+    let queue = panel.sortQueue
+    #expect(queue.count == 5)
+    #expect(panel.sortTargets(from: "devex").map(\.id) == ["inbox", "work"])
+    #expect(keys.handle(KeyInput("2")))
+    #expect(keys.handle(KeyInput("t")))
+    #expect(keys.handle(KeyInput("s")))
+    #expect(await eventually { model.reminder(queue[0])?.listID == "work" })
+    #expect(model.isChosen(queue[1]))
+    #expect(panel.sortDone == 3 && panel.sortQueue.count == 2)
+    #expect(keys.handle(KeyInput("n")))
+    #expect(panel.route == .move("") && panel.returnRoute == .sort("devex"))
+    #expect(keys.handle(KeyInput("", special: .escape)))
+    #expect(panel.route == .sort("devex"))
+  }
+
+  @Test func oneBusyListSuggestsSortingIntoShelves() async throws {
+    let lists = [
+      ReminderList(id: "only", title: "Reminders"), ReminderList(id: "empty", title: "Other"),
+    ]
+    let items = (0..<12).map { ReminderItem(id: "r\($0)", title: "Task \($0)", listID: "only") }
+    let store = FixtureReminderStore(items: items, lists: lists)
+    let model = DayModel(
+      store: store, planStore: PlanStore(url: directory.appendingPathComponent("one.json")))
+    await model.refresh()
+    let panel = PanelState(model: model, motion: MotionState(model: model))
+    #expect(panel.sectionedListSuggestion?.list.id == "only")
+    #expect(panel.sectionedListSuggestion?.count == 12)
+    let (demoModel, demoPanel, _, _) = try await make()
+    #expect(demoPanel.sectionedListSuggestion == nil)
+    _ = demoModel
+  }
+
+  /// Polls a condition for up to two seconds; motion holds are timers, and tests run in parallel.
+  func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0..<100 {
+      if condition() { return true }
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    return condition()
   }
 }

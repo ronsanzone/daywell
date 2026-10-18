@@ -16,6 +16,7 @@ import SwiftUI
   public let panelWindow = FloatingPanel(level: .popUpMenu)
   public let captureWindow = FloatingPanel(level: .floating)
   private let sound = SoundPlayer()
+  public private(set) var catchService: CatchService!
   private let hotKeys = HotKeys()
   private var panelKeys: PanelKeys!
   private var keyMonitor: Any?
@@ -61,6 +62,9 @@ import SwiftUI
       NotificationCenter.default.addObserver(
         forName: NSWindow.didResizeNotification, object: panelWindow, queue: .main
       ) { [weak self] _ in MainActor.assumeIsolated { self?.positionPanel() } })
+    catchService = CatchService(model: model)
+    NSApp.servicesProvider = catchService
+    NSUpdateDynamicServices()
     installMonitors()
     installHotKeys()
     installFeedback()

@@ -163,7 +163,7 @@ public struct CaptureBarView: View {
           }
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
-        .opacity(motion.isLeaving(item.id) ? 0 : 1)
+        .collapses(when: motion.isLeaving(item.id))
         .transition(.identity)
         .background {
           if capture.listIndex == index {

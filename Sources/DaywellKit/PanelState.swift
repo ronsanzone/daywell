@@ -7,6 +7,8 @@ public enum PanelRoute: Equatable, Sendable {
   case edit(String)
   /// Choosing a shelf for a reminder (m).
   case move(String)
+  /// Sorting one list's reminders into shelves, one key per reminder.
+  case sort(String)
 }
 
 /// A row the keyboard can land on in the Today view.
@@ -41,6 +43,10 @@ public enum PanelRow: Hashable, Sendable {
   /// Chips chosen in the morning pull.
   public var morningPicks: [String] = []
   public var morningIndex = 0
+  /// Reminders still to sort, and where to go back after naming a new shelf.
+  public var sortQueue: [String] = []
+  public var sortDone = 0
+  public var returnRoute: PanelRoute?
 
   @ObservationIgnored let model: DayModel
   @ObservationIgnored let motion: MotionState
@@ -147,6 +153,29 @@ public enum PanelRow: Hashable, Sendable {
     morningPicks = []
     morningIndex = 0
     route = .morning
+  }
+
+  /// Starts sorting a list: every open reminder in it, one at a time.
+  public func beginSort(_ listID: String) {
+    sortQueue = model.reminders.filter { $0.listID == listID && !$0.isCompleted }
+      .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }.map(\.id)
+    sortDone = 0
+    route = .sort(listID)
+  }
+
+  /// Shelves a sorted reminder can go to: every writable list except its own.
+  public func sortTargets(from listID: String) -> [ReminderList] {
+    model.writableLists.filter { $0.id != listID }
+  }
+
+  /// The list that looks like it holds sections: the only one with open work.
+  public var sectionedListSuggestion: (list: ReminderList, count: Int)? {
+    let open = model.writableLists.map { list in
+      (list, model.reminders.filter { $0.listID == list.id && !$0.isCompleted }.count)
+    }
+    let busy = open.filter { $0.1 > 0 }
+    guard busy.count == 1, let only = busy.first, only.1 >= 8 else { return nil }
+    return only
   }
 
   public func toggleMorningPick(_ id: String) {

@@ -197,6 +197,10 @@ public func contrastRatio(_ first: UInt32, _ second: UInt32) -> Double {
     didSet { defaults.set(finishHotKeyEnabled, forKey: "finishHotKeyEnabled") }
   }
   public var inboxID: String { didSet { defaults.set(inboxID, forKey: "inboxID") } }
+  /// The one-time "sort into shelves" suggestion was answered.
+  public var shelfSortOffered: Bool {
+    didSet { defaults.set(shelfSortOffered, forKey: "shelfSortOffered") }
+  }
   public var shortcutKey: Int { didSet { defaults.set(shortcutKey, forKey: "shortcutKey") } }
   public var shortcutModifiers: Int {
     didSet { defaults.set(shortcutModifiers, forKey: "shortcutModifiers") }
@@ -211,6 +215,7 @@ public func contrastRatio(_ first: UInt32, _ second: UInt32) -> Double {
     soundEnabled = defaults.bool(forKey: "soundEnabled")
     finishHotKeyEnabled = defaults.bool(forKey: "finishHotKeyEnabled")
     inboxID = defaults.string(forKey: "inboxID") ?? ""
+    shelfSortOffered = defaults.bool(forKey: "shelfSortOffered")
     shortcutKey = defaults.object(forKey: "shortcutKey") as? Int ?? 49
     shortcutModifiers = defaults.object(forKey: "shortcutModifiers") as? Int ?? 6144
   }
