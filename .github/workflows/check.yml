@@ -30,3 +30,28 @@ jobs:
         run: bash scripts/bootstrap-tools.sh
       - name: Run checks
         run: bash scripts/check.sh
+
+  release:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+      TAG: main-${{ github.run_number }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build Daywell.app
+        run: BUILD_NUMBER="${{ github.run_number }}" bash scripts/build-app.sh
+      - name: Publish release
+        run: |
+          ZIP="Daywell-$TAG.zip"
+          ditto -c -k --keepParent dist/Daywell.app "$ZIP"
+          shasum -a 256 "$ZIP" | tee "$ZIP.sha256"
+          gh release create "$TAG" "$ZIP" "$ZIP.sha256" --target "$GITHUB_SHA" --latest \
+            --title "Daywell $TAG" \
+            --notes "Built from $GITHUB_SHA on main. Install: bash scripts/install-latest.sh"
