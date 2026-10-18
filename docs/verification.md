@@ -1,5 +1,31 @@
 # Daywell development verification
 
+## October 2026 rebuild — source build, October 18, 2026
+
+Environment: macOS 27 arm64, Swift 6.4 Command Line Tools. Fixture data only;
+no live EventKit access, installation or re-signing of the approved app.
+
+- `bash scripts/check.sh` passed: formatting, SwiftLint (0 violations), dependency
+  boundaries, build, and **66 tests** (41 core, 25 kit).
+- `DaywellDev --ui-check` (release build) passed **62 checks**, and `--ui-check
+  --fresh-day` passed **9**, using AppKit events posted through the application
+  queue to the real capture bar, panel and menu-bar ticker windows.
+- Timings from that run: capture bar on screen 3.4 ms median (8.6 ms worst, n=10);
+  keypress to finish motion 5.1 ms; Return to saved with 12 ms simulated EventKit
+  latency 35 ms. `--bench`: projection with 20,000 completed reminders took 29.6 ms
+  on the old all-reminders fetch, 0.013 ms on the new two-query fetch.
+- Inspected snapshots of every surface in all four themes, the menu-bar ring states,
+  and frame sequences of each theme's finish, the capture-bar finish and Day clear.
+  Frames are view renders (`cacheDisplay`), not screen captures.
+- **Not verified here:** real key focus after a physical ⌃⌥Space press (this
+  harness gets no window key focus from macOS at all, even after `NSApp.activate`);
+  on-screen pixels (Screen Recording isn't granted); the Services menu entry in a
+  registered app; audible sounds; VoiceOver; and live EventKit. `--live-check` was
+  denied Reminders access when run from the agent's process; run
+  `bash scripts/live-check.sh` from a terminal to let macOS ask on Daywell's behalf.
+  It also reports whether a reminder keeps its identifier when moved between lists.
+
+
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 
