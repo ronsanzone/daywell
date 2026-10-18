@@ -1,6 +1,6 @@
 # Daywell visual style guide
 
-Status: layout and theme directions approved September 18, 2026.
+Status: layout approved September 18, 2026; themes revised October 18, 2026.
 Exact metrics below are proposed starting tokens, not pixel-level user approvals.
 Generated images are design references, not runnable UI or behavior-verification evidence.
 
@@ -16,45 +16,62 @@ Do not add a desktop-project sidebar or a grid of cards.
 The hierarchy is My Day commitments (one optional pin), Due & overdue,
 From yesterday, Done today, and a separate capture control. Completed rows use
 subdued but readable text and strikethrough. Done today is collapsed by default;
-the reference expands it to demonstrate completion styling.
+the reference expands it to demonstrate completion styling. (October 2026: today's
+pile replaces the collapsed section; see functionality.md.)
 
 ## Themes
 
-### Graphite & Taupe — default
+October 18, 2026: Ron chose four selectable themes from the dream-board theme mocks.
+Each fills the same slots (surface, type, ring, finish motion, pile token, sound,
+Day clear) and never changes layout or keys. Porcelain & Sage and Linen & Plum are
+retired. Finish motions last about 300 ms, sounds are opt-in, and all motion
+respects Reduce Motion.
 
-- Background: `#242527`
-- Raised surface: `#2D2F32`
-- Primary text: `#E8E7E3`
-- Secondary text: `#AAACAE`
-- Accent: `#B6A48F`
+### Quiet Native — default (refined Graphite & Taupe)
 
-### Porcelain & Sage
+- Background `#242527`, raised `#2D2F32`, text `#E8E7E3`, secondary `#AAACAE`,
+  accent `#B6A48F`, highlight `#E3D3BF`. SF Pro.
+- Finish: ring fills taupe with one spring overshoot; check strokes in; strike draws
+  left to right. Token: rounded taupe square, newest glows highlight. Sound: soft "tock".
 
-- Background: `#F4F1E8`
-- Raised surface: `#E9E8DF`
-- Primary text: `#323633`
-- Separator/stone: `#D9D7CD`
-- Accent: `#52654F`
-- Secondary text: `#64685F`
+### Phosphor — Amber CRT, committed
 
-![Palette and capture reference, not layout](references/08-editorial-precision.png)
+- Existing Amber tokens: background `#130E08`, raised `#251A0E`, text `#FFDBA8`,
+  secondary `#E0BD8C`, accent `#FFBB59`.
+- Finish: the row flares bright and settles; ring becomes a lit block; the Orbital Relay
+  makes one orbit per completion. Token: phosphor bar. Sound: short 880 Hz beep.
+  Text fields stay outside the CRT layer, as today.
 
-Borrow colors, not the oversized serif date or alternate layout.
+### Waffle Cat — from Ron's Ghostty theme (dark)
 
-### Linen & Plum
+- Background `#292025`, deep `#1F181C`, raised `#362D30`, text `#FFF4D8`,
+  secondary `#A58C82`, accent `#C87D2A`, highlight `#E4C56D`. Maple Mono, falling back
+  to the system monospaced face.
+- Finish: ring fills caramel with one small spring; caramel strike. Token: rounded
+  caramel square, newest glows honey. Sound: soft "pat". Keep it plain: palette only,
+  no waffle motifs.
+- Contrast: secondary on raised is 4.24:1; use secondary text on the background only,
+  or lighten it on raised rows.
 
-- Background: `#F7F3F5`
-- Raised surface: `#EBE4EC`
-- Primary text: `#392D3D`
-- Accent: `#795C80`
-- Secondary text: `#6F6373`
+### Flexoki Light — from Ron's dotfiles (light)
 
-![Palette reference, not layout](references/03-linen-plum.png)
+- Background `#FFFCF0`, page `#F2F0E5`, rules `#DAD8CE`, text `#100F0F`,
+  secondary `#6F6E69`, accent `#205EA6`. Maple Mono.
+- Finish: each completion takes the next Flexoki ink (red, orange, yellow, green, cyan,
+  blue, purple, magenta) for its ring and strike; the pile becomes a row of ink dots.
+- Contrast: the 400-level yellow `#D0A215` (2.3:1) and cyan `#3AA99F` (2.8:1) fail 3:1
+  on the background. Use Flexoki's 600-level inks for rings and tokens; verify the
+  exact values against the official palette before shipping.
 
-Borrow colors, not the roomier row geometry or rounded-heading treatment.
+### Menu bar limits
 
-These are the implemented tokens, adjusted from the generated reference palettes
-for text contrast. Keyboard selection uses a full-opacity accent outline, separate
+A status item gets an attributed title and a small template image. Themes keep the
+ticker plain and put their character in the panel and capture bar. Ring animation in
+the menu bar, if any, uses image frames. This is inferred from AppKit and not yet
+tested in Daywell.
+
+Graphite and Amber tokens are implemented; Waffle Cat and Flexoki Light are proposed
+and still need the contrast checks noted above. Keyboard selection uses a full-opacity accent outline, separate
 from the pin symbol. Normal primary/secondary/accent text is checked against both
 background and raised surfaces; disabled states and native controls still require
 the complete accessibility acceptance pass. Aim for at least 4.5:1 normal text and
@@ -91,10 +108,10 @@ passing through an in-progress state.
 - Search and capture remain separate. Show removable/editable date interpretation
   before saving natural-language input.
 - Command palette actions show relevant shortcuts; shortcut help is itself keyboard-accessible.
-- Neutral menu-bar icon by default; optional unfinished My Day count is plain,
-  subdued text rather than a red notification badge.
-- No animated encouragement, streaks, scores, urgency colors for ordinary overdue work,
-  or timers. Respect reduced motion.
+- The menu bar shows the ticker task as text by default (October 2026); no red
+  badges or overdue counts.
+- Completion feedback is animated per theme ("no ledger"): reward the act, but no
+  streaks, scores, urgency colors for ordinary overdue work, or timers. Respect reduced motion.
 
 ## Corrections to generated references
 
@@ -110,7 +127,7 @@ passing through an in-progress state.
 
 ## Required rendered review
 
-Inspect all three themes with keyboard focus, pinned and unpinned tasks, long titles,
+Inspect all four themes with keyboard focus, pinned and unpinned tasks, long titles,
 empty My Day, overdue items, yesterday reset, expanded Done today, command palette,
 shortcut help, natural-language preview, and permission/error states. Capture and
 inspect real screenshots when the app exists. These mockups do not satisfy that check.

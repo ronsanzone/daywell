@@ -28,7 +28,7 @@ struct CaptureParserTests {
     #expect(
       result
         == CaptureResult(
-          title: "Discuss Friday launch notes", dueDate: nil, hasTime: false, interpretation: nil))
+          title: "Discuss Friday launch notes", dueDate: nil, hasTime: false))
   }
 
   @Test func parsesTomorrowWithTimeAcrossYearBoundary() {
@@ -37,7 +37,7 @@ struct CaptureParserTests {
     #expect(result.title == "Call dentist")
     #expect(result.dueDate == date(2027, 1, 1, 14))
     #expect(result.hasTime)
-    #expect(result.interpretation != nil)
+    #expect(result.datePhrase == "tomorrow at 2pm")
   }
 
   @Test func dateOnlyTomorrowUsesStartOfDaySemantics() {
@@ -117,5 +117,50 @@ struct CaptureParserTests {
     let result = CaptureParser.parse(input, now: now, calendar: lordHowe)
     #expect(result.dueDate == nil)
     #expect(result.title == input)
+  }
+
+  @Test func shorthandDaysAndTimesWithoutAt() {
+    let now = date(2026, 9, 18)  // a Friday
+    let tmrw = CaptureParser.parse("ask sean re qa run tmrw 2pm", now: now, calendar: calendar)
+    #expect(tmrw.title == "ask sean re qa run")
+    #expect(tmrw.dueDate == date(2026, 9, 19, 14))
+    #expect(tmrw.datePhrase == "tmrw 2pm")
+    let fri = CaptureParser.parse("Renew parking permit fri 9am", now: now, calendar: calendar)
+    #expect(fri.dueDate == date(2026, 9, 18, 9))
+    let nextFri = CaptureParser.parse("Renew parking next fri", now: now, calendar: calendar)
+    #expect(nextFri.dueDate == date(2026, 9, 25, 0))
+  }
+
+  @Test func shelfTokenAnywhereIsRemovedFromTheTitle() {
+    let now = date(2026, 9, 18)
+    let end = CaptureParser.parse("Remote workstation bootstrap /dev", now: now, calendar: calendar)
+    #expect(end.title == "Remote workstation bootstrap")
+    #expect(end.shelfQuery == "dev")
+    let middle = CaptureParser.parse(
+      "ask sean /work re qa run tomorrow", now: now, calendar: calendar)
+    #expect(middle.title == "ask sean re qa run")
+    #expect(middle.shelfQuery == "work")
+    #expect(middle.dueDate == date(2026, 9, 19, 0))
+  }
+
+  @Test func aLineThatIsOnlyAShelfOrAPathStaysLiteral() {
+    let now = date(2026, 9, 18)
+    #expect(CaptureParser.parse("/work", now: now, calendar: calendar).title == "/work")
+    let path = CaptureParser.parse("check /usr/local/bin perms", now: now, calendar: calendar)
+    #expect(path.shelfQuery == nil)
+    #expect(path.title == "check /usr/local/bin perms")
+  }
+
+  @Test func shelfQueryResolvesExactThenPrefixThenContains() {
+    let lists = [
+      ReminderList(id: "w", title: "Work"), ReminderList(id: "d", title: "DevEx"),
+      ReminderList(id: "h", title: "Homework"),
+      ReminderList(id: "r", title: "Shared", isWritable: false),
+    ]
+    #expect(CaptureParser.resolveShelf("work", in: lists)?.id == "w")
+    #expect(CaptureParser.resolveShelf("dev", in: lists)?.id == "d")
+    #expect(CaptureParser.resolveShelf("mework", in: lists)?.id == "h")
+    #expect(CaptureParser.resolveShelf("shared", in: lists) == nil)
+    #expect(CaptureParser.resolveShelf(nil, in: lists) == nil)
   }
 }

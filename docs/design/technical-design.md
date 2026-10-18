@@ -171,3 +171,34 @@ verification with the owning checkout. No delegation is required to write this d
 
 Ron approved the technical design and edge-case behavior, requested Vim-inspired
 motions, and authorized the build. Proceed with a recorded implementation plan.
+
+## October 2026 architecture
+
+Approved by Ron on October 18, 2026, after the dream-board audit. Supersedes the
+single-popover shell and color-only themes above; the EventKit contract, companion
+persistence and capture safety rules still apply.
+
+- **Targets.** `DaywellCore` (pure: `DayPlan`, `Today` projection, capture grammar),
+  `DaywellKit` (`DayModel`, EventKit adapter, views, themes, AppKit shell), `Daywell`
+  (a thin `main.swift`), and the never-shipped `DaywellFixtures` and `DaywellDev`
+  (demo, snapshots, UI check, benchmarks, live check).
+- **Fetch.** Two concurrent EventKit queries: open reminders, and reminders completed
+  since local midnight (which are today's pile). Completed history is never loaded.
+- **One owner.** `DayModel` owns reminders, the plan and every action. `Today` is
+  derived once per change of reminders, plan, lists or day, then read by the ticker,
+  the capture bar and the panel. UI state lives in `PanelState` and `CaptureState`.
+- **Motion before confirmation.** A finish emits `.finishing` on the keypress so the
+  ring fills at once; the pile, the ticker roll, sound and Day clear wait for Apple
+  Reminders to confirm (`.finished`), and a rejection emits `.finishFailed` to reverse
+  the motion. Nothing is reported as saved before it is.
+- **Undo.** One slot, kept until the next undoable action: plan changes, finish and
+  reopen, and moves. It never overwrites a later external edit.
+- **Shell.** Two non-activating panels (capture bar, panel) take keys without making
+  Daywell the active app, so the previous app keeps focus. Carbon hot keys: capture
+  (configurable) and optional finish (⌃⌥X). `StatusTicker` draws the task text with a
+  hit-tested ring, a `+N` menu and a fixed truncation length.
+- **Moves.** Changing a reminder's list may change its identifier; the plan re-links
+  by the external identifier on refresh and immediately after a move.
+- **Themes.** `ThemeProfile` sets palette, type, ring, finish style, pile token, sound
+  and Day clear text, injected through the SwiftUI environment. Sounds are synthesized
+  at launch into memory; Maple Mono ships in the bundle under the OFL.

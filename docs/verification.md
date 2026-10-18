@@ -1,5 +1,35 @@
 # Daywell development verification
 
+## October 2026 rebuild — source build, October 18, 2026
+
+Environment: macOS 27 arm64, Swift 6.4 Command Line Tools. Fixture data only;
+no live EventKit access, installation or re-signing of the approved app.
+
+- `bash scripts/check.sh` passed: formatting, SwiftLint (0 violations), dependency
+  boundaries, build, and **66 tests** (41 core, 25 kit).
+- `DaywellDev --ui-check` (release build) passed **59 checks**, and `--ui-check
+  --fresh-day` passed **9**, using AppKit events posted through the application
+  queue to the real capture bar, panel and menu-bar ticker windows.
+- Timings from that run: `showCapture()` to window on screen 3.0 ms median (6.1 ms
+  worst, n=10); posted keypress to finish motion 5.5 ms; keypress to confirmed finish
+  with 12 ms simulated EventKit latency 20 ms. `--bench`: projection with 20,000 completed reminders took 29.6 ms
+  on the old all-reminders fetch, 0.013 ms on the new two-query fetch.
+- Inspected snapshots of every surface in all four themes, the menu-bar ring states,
+  and frame sequences of each theme's finish, the capture-bar finish and Day clear.
+  Frames are view renders (`cacheDisplay`), not screen captures.
+- **Not verified here:** real key focus after a physical ⌃⌥Space press (this
+  harness gets no window key focus from macOS at all, even after `NSApp.activate`);
+  on-screen pixels (Screen Recording isn't granted); the Services menu entry in a
+  registered app; audible sounds; and VoiceOver.
+- After Ron granted Screen Recording, a `screencapture` video of the display during
+  the UI check confirmed the capture bar and panel render on screen as in the frames.
+- After Ron allowed Reminders access, `bash scripts/live-check.sh` passed every live
+  check on disposable lists it created and removed, including the October additions:
+  `createList`, a cross-list move (the identifier **survives** the move), and the My
+  Day choice following it. Read-only fetch timing on Ron's store: all reminders, 41
+  items, 6.8–16 ms; the two narrow queries, 15 items, 5.1–7.4 ms.
+
+
 Date: September 18, 2026. Environment: macOS arm64, Swift 6.2.4 Command Line Tools.
 This is a local development build, not a release certification.
 

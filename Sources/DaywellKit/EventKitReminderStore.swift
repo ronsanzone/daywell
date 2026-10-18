@@ -11,26 +11,36 @@ import Foundation
     try await eventStore.requestFullAccessToReminders()
   }
 
-  public func fetch() async throws -> ReminderSnapshot {
+  public func fetch(completedSince: Date) async throws -> ReminderSnapshot {
     guard authorized else { throw ReminderError.denied }
     let calendars = eventStore.calendars(for: .reminder)
-    let predicate = eventStore.predicateForReminders(in: calendars)
-    let items: [ReminderItem] = try await withCheckedThrowingContinuation { continuation in
-      eventStore.fetchReminders(matching: predicate) { reminders in
-        guard let reminders else {
-          continuation.resume(throwing: ReminderError.denied)
-          return
-        }
-        continuation.resume(returning: reminders.map(Self.snapshot))
-      }
-    }
+    // Two narrow queries instead of every reminder ever completed: open work, and
+    // today's completions (which are today's pile). EventKit runs them concurrently.
+    let predicates = [
+      eventStore.predicateForIncompleteReminders(
+        withDueDateStarting: nil, ending: nil, calendars: calendars),
+      eventStore.predicateForCompletedReminders(
+        withCompletionDateStarting: completedSince, ending: nil, calendars: calendars),
+    ]
+    let items = try await fetchAll(predicates)
     return ReminderSnapshot(
       reminders: items,
-      lists: calendars.map {
-        ReminderList(
-          id: $0.calendarIdentifier, title: $0.title, isWritable: $0.allowsContentModifications)
+      lists: calendars.map(Self.list).sorted {
+        $0.title.localizedStandardCompare($1.title) == .orderedAscending
       },
       defaultListID: eventStore.defaultCalendarForNewReminders()?.calendarIdentifier)
+  }
+
+  private func fetchAll(_ predicates: [NSPredicate]) async throws -> [ReminderItem] {
+    try await withCheckedThrowingContinuation { continuation in
+      let collector = FetchCollector(expected: predicates.count, continuation: continuation)
+      for predicate in predicates {
+        // EventKit calls back off the main thread; values are mapped there.
+        eventStore.fetchReminders(matching: predicate) { reminders in
+          collector.add(reminders.map { $0.map(Self.snapshot) })
+        }
+      }
+    }
   }
 
   public func save(_ item: ReminderItem, replacing original: ReminderItem?) async throws
@@ -80,6 +90,20 @@ import Foundation
     try eventStore.remove(reminder, commit: true)
   }
 
+  public func createList(named title: String) async throws -> ReminderList {
+    guard authorized else { throw ReminderError.denied }
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { throw ReminderError.emptyTitle }
+    guard let source = eventStore.defaultCalendarForNewReminders()?.source else {
+      throw ReminderError.noListSource
+    }
+    let calendar = EKCalendar(for: .reminder, eventStore: eventStore)
+    calendar.title = trimmed
+    calendar.source = source
+    try eventStore.saveCalendar(calendar, commit: true)
+    return Self.list(calendar)
+  }
+
   private func existing(_ original: ReminderItem) throws -> EKReminder {
     guard let reminder = eventStore.calendarItem(withIdentifier: original.id) as? EKReminder else {
       throw ReminderError.missing
@@ -90,7 +114,13 @@ import Foundation
     return reminder
   }
 
-  nonisolated private static func snapshot(_ reminder: EKReminder) -> ReminderItem {
+  nonisolated private static func list(_ calendar: EKCalendar) -> ReminderList {
+    ReminderList(
+      id: calendar.calendarIdentifier, title: calendar.title,
+      isWritable: calendar.allowsContentModifications)
+  }
+
+  nonisolated static func snapshot(_ reminder: EKReminder) -> ReminderItem {
     var calendar = Calendar.current
     let components = reminder.dueDateComponents
     if let zone = components?.timeZone { calendar.timeZone = zone }
@@ -102,5 +132,33 @@ import Foundation
       completionDate: reminder.completionDate,
       isWritable: reminder.calendar.allowsContentModifications,
       externalID: reminder.calendarItemExternalIdentifier)
+  }
+}
+
+/// Joins concurrent EventKit fetch callbacks into one result.
+private final class FetchCollector: @unchecked Sendable {
+  private let lock = NSLock()
+  private var remaining: Int
+  private var items: [ReminderItem] = []
+  private var failed = false
+  private let continuation: CheckedContinuation<[ReminderItem], Error>
+
+  init(expected: Int, continuation: CheckedContinuation<[ReminderItem], Error>) {
+    remaining = expected
+    self.continuation = continuation
+  }
+
+  func add(_ batch: [ReminderItem]?) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !failed else { return }
+    guard let batch else {
+      failed = true
+      continuation.resume(throwing: ReminderError.denied)
+      return
+    }
+    items += batch
+    remaining -= 1
+    if remaining == 0 { continuation.resume(returning: items) }
   }
 }

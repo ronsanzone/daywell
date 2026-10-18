@@ -7,6 +7,7 @@ let package = Package(
   products: [
     .library(name: "DaywellCore", targets: ["DaywellCore"]),
     .executable(name: "Daywell", targets: ["Daywell"]),
+    .executable(name: "DaywellDev", targets: ["DaywellDev"]),
   ],
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-testing.git", exact: "6.2.4")
@@ -15,10 +16,14 @@ let package = Package(
     .target(name: "DaywellCore"),
     .target(name: "DaywellKit", dependencies: ["DaywellCore"]),
     .executableTarget(name: "Daywell", dependencies: ["DaywellKit", "DaywellCore"]),
+    // Never shipped: fixtures, demo, snapshots, UI checks, benchmarks, live check.
+    .target(name: "DaywellFixtures", dependencies: ["DaywellKit", "DaywellCore"]),
+    .executableTarget(
+      name: "DaywellDev", dependencies: ["DaywellKit", "DaywellCore", "DaywellFixtures"]),
     .testTarget(
       name: "DaywellKitTests",
       dependencies: [
-        "DaywellKit", .product(name: "Testing", package: "swift-testing"),
+        "DaywellKit", "DaywellFixtures", .product(name: "Testing", package: "swift-testing"),
       ]),
     .testTarget(
       name: "DaywellCoreTests",

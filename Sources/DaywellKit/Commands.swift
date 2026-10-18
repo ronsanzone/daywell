@@ -1,145 +1,158 @@
 import AppKit
+import DaywellCore
 
-public enum DaywellCommand: String, CaseIterable, Identifiable {
-  case capture, browse, choose, pin, complete, edit, release, undo, reset, done, keepAll,
-    releaseAll, delete, help, settings, appleReminders, quit, sections, patchbay
+/// Things the surfaces ask the shell to do (open the capture bar, close the panel).
+@MainActor public struct ShellActions {
+  public var openCapture: () -> Void
+  public var closePanel: () -> Void
+  public init(openCapture: @escaping () -> Void, closePanel: @escaping () -> Void) {
+    self.openCapture = openCapture
+    self.closePanel = closePanel
+  }
+}
+
+/// The one command registry: palette, help, keys and buttons all use it.
+public enum DaywellCommand: String, CaseIterable, Identifiable, Sendable {
+  case capture, browse, finish, pin, pull, release, move, edit, reorderUp, reorderDown, undo,
+    morning, shelves, newShelf, sortShelves, help, settings, appleReminders, quit
+
   public var id: String { rawValue }
+
   public var title: String {
     switch self {
-    case .capture: "Add reminder"
+    case .capture: "Catch something"
     case .browse: "Search reminders"
-    case .patchbay: "Open task patchbay"
-    case .choose: "Add selected to My Day"
-    case .pin: "Pin / unpin selected reminder"
-    case .complete: "Complete / reopen reminder"
-    case .edit: "Edit selected reminder"
-    case .release: "Remove from My Day"
-    case .undo: "Undo completion"
-    case .reset: "Review previous commitments"
-    case .done: "Show / hide Done today"
-    case .sections: "Expand / collapse all sections"
-    case .keepAll: "Keep all previous commitments"
-    case .releaseAll: "Release previous commitments"
-    case .delete: "Delete selected reminder…"
-    case .help: "Show keyboard shortcuts"
+    case .finish: "Finish / reopen selected"
+    case .pin: "Pin selected to the menu bar"
+    case .pull: "Pull selected into My Day"
+    case .release: "Not today: back to its shelf"
+    case .move: "Move selected to another shelf"
+    case .edit: "Edit selected"
+    case .reorderUp: "Move up in My Day"
+    case .reorderDown: "Move down in My Day"
+    case .undo: "Undo"
+    case .morning: "Pick today's few"
+    case .shelves: "Open / close all shelves"
+    case .newShelf: "New shelf"
+    case .sortShelves: "Sort a list into shelves"
+    case .help: "Keyboard shortcuts"
     case .settings: "Settings"
     case .appleReminders: "Open Apple Reminders"
     case .quit: "Quit Daywell"
     }
   }
+
   public var symbol: String {
     switch self {
     case .capture: "plus"
     case .browse: "magnifyingglass"
-    case .patchbay: "point.3.connected.trianglepath.dotted"
-    case .choose: "sun.max"
+    case .finish: "checkmark.circle"
     case .pin: "pin"
-    case .complete: "checkmark.circle"
+    case .pull: "arrow.up.circle"
+    case .release: "arrow.down.circle"
+    case .move: "tray.and.arrow.down"
     case .edit: "pencil"
-    case .release: "minus.circle"
+    case .reorderUp: "arrow.up"
+    case .reorderDown: "arrow.down"
     case .undo: "arrow.uturn.backward"
-    case .reset: "arrow.counterclockwise"
+    case .morning: "sun.max"
+    case .shelves: "books.vertical"
+    case .newShelf: "folder.badge.plus"
+    case .sortShelves: "square.stack.3d.down.right"
     case .help: "keyboard"
     case .settings: "gearshape"
-    case .done: "checkmark.circle.fill"
-    case .sections: "list.bullet.indent"
-    case .keepAll: "sun.max"
-    case .releaseAll: "minus.circle"
-    case .delete: "trash"
     case .appleReminders: "arrow.up.forward.app"
     case .quit: "power"
     }
   }
-  public var keyBinding: (key: String, command: Bool)? {
+
+  /// Displayed shortcut.
+  public var shortcut: String {
     switch self {
-    case .capture: ("n", true)
-    case .browse: ("f", true)
-    case .patchbay: ("b", false)
-    case .choose: ("a", false)
-    case .pin: ("p", false)
-    case .complete: ("x", false)
-    case .edit: ("e", false)
-    case .release: ("r", false)
-    case .undo: ("z", true)
-    case .help: ("?", false)
-    case .settings: (",", true)
-    case .quit: ("q", true)
-    case .done: ("d", false)
-    case .sections: ("s", false)
-    case .reset, .appleReminders, .keepAll, .releaseAll, .delete: nil
+    case .capture: "⌃⌥Space"
+    case .browse: "⌘F"
+    case .finish: "x"
+    case .pin: "p"
+    case .pull: "a"
+    case .release: "r"
+    case .move: "m"
+    case .edit: "↵"
+    case .reorderUp: "⌥↑"
+    case .reorderDown: "⌥↓"
+    case .undo: "⌘Z"
+    case .morning: ""
+    case .shelves: "s"
+    case .newShelf, .sortShelves: ""
+    case .help: "?"
+    case .settings: "⌘,"
+    case .appleReminders: ""
+    case .quit: "⌘Q"
     }
   }
-  public var shortcut: String {
-    guard let binding = keyBinding else { return "" }
-    if self == .edit { return "e / ↵ / l" }
-    return binding.command ? "⌘ \(binding.key.uppercased())" : binding.key
-  }
-  @MainActor public func isEnabled(_ model: AppModel, reminderID: String? = nil) -> Bool {
-    guard !model.busy else { return false }
-    let id = reminderID ?? model.selectedID
+
+  @MainActor public func isEnabled(_ model: DayModel, _ panel: PanelState) -> Bool {
+    let id = panel.selectedReminderID
     switch self {
-    case .pin, .choose:
-      return model.reminders.contains { $0.id == id && !$0.isCompleted }
-    case .complete, .edit, .delete:
-      return model.reminders.contains { $0.id == id && $0.isWritable }
-    case .release: return model.plan.commitments.contains { $0.reminderID == id }
+    case .finish, .edit, .move: return id.map(model.canWrite) ?? false
+    case .pin: return id.flatMap(model.reminder).map { !$0.isCompleted } ?? false
+    case .pull:
+      return id.map { !model.isChosen($0) && model.reminder($0)?.isCompleted == false } ?? false
+    case .release:
+      return id.map { id in model.plan.commitments.contains { $0.reminderID == id } } ?? false
+    case .reorderUp, .reorderDown: return id.map(model.isChosen) ?? false
     case .undo: return model.undo != nil
     case .capture: return model.authorized && !model.writableLists.isEmpty
-    case .sections: return model.authorized
-    case .keepAll, .releaseAll: return !model.projection.previous.isEmpty
+    case .newShelf: return model.authorized
+    case .sortShelves: return !model.writableLists.isEmpty
     default: return true
     }
   }
-  @MainActor public func perform(_ model: AppModel) {
-    guard isEnabled(model) else { return }
+
+  @MainActor public func perform(_ model: DayModel, _ panel: PanelState, _ shell: ShellActions) {
+    guard isEnabled(model, panel) else { return }
+    let id = panel.selectedReminderID
+    if panel.route == .commands { panel.route = .today }
     switch self {
-    case .capture: model.route = .capture
-    case .browse: model.route = .browse
-    case .patchbay: model.route = .patchbay
-    case .choose:
-      if let id = model.selectedID { model.choose(id) }
-      if model.route != .patchbay { model.route = .day }
-    case .pin:
-      if let id = model.selectedID { model.pin(id) }
-      if model.route != .patchbay { model.route = .day }
-    case .complete:
-      if let id = model.selectedID { Task { await model.complete(id) } }
-      if model.route != .patchbay { model.route = .day }
-    case .edit:
-      if let id = model.selectedID { model.edit(id) }
-    case .release:
-      if let id = model.selectedID { model.release(id) }
-      if model.route != .patchbay { model.route = .day }
-    case .undo:
-      Task { await model.undoCompletion() }
-      if model.route != .patchbay { model.route = .day }
-    case .reset:
-      model.previousExpanded = true
-      model.route = .day
-    case .done:
-      model.doneExpanded.toggle()
-      model.route = .day
-    case .sections:
-      model.toggleSections()
-      model.route = .day
-    case .keepAll:
-      model.keepPrevious(model.projection.previous.map(\.id))
-      model.route = .day
-    case .releaseAll:
-      model.releasePrevious()
-      model.route = .day
-    case .delete:
-      if let original = model.reminders.first(where: { $0.id == model.selectedID }) {
-        model.requestDelete(original)
+    case .capture: shell.openCapture()
+    case .browse: panel.route = .browse
+    case .finish: if let id { Task { await model.toggleCompletion(id) } }
+    case .pin: if let id { model.pin(id) }
+    case .pull: if let id { model.choose(id) }
+    case .release: if let id { model.release(id) }
+    case .move:
+      if let id {
+        panel.moveIndex = 0
+        panel.route = .move(id)
       }
-    case .help: model.route = .help
-    case .settings: model.route = .settings
+    case .edit: if let id { panel.route = .edit(id) }
+    case .reorderUp: if let id { model.reorder(id, by: -1) }
+    case .reorderDown: if let id { model.reorder(id, by: 1) }
+    case .undo: Task { await model.undoLast() }
+    case .morning: panel.beginMorning()
+    case .shelves: panel.toggleAllShelves()
+    case .newShelf:
+      panel.newShelfName = ""
+      panel.moveIndex = -1
+      panel.route = .move("")
+    case .sortShelves:
+      let busiest = model.writableLists.max { lhs, rhs in
+        model.reminders.filter { $0.listID == lhs.id && !$0.isCompleted }.count
+          < model.reminders.filter { $0.listID == rhs.id && !$0.isCompleted }.count
+      }
+      if let busiest { panel.beginSort(busiest.id) }
+    case .help: panel.route = .help
+    case .settings: panel.route = .settings
     case .appleReminders:
       if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.reminders")
       {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
       }
+      shell.closePanel()
     case .quit: NSApplication.shared.terminate(nil)
     }
+  }
+
+  public static func matching(_ query: String) -> [DaywellCommand] {
+    allCases.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
   }
 }
